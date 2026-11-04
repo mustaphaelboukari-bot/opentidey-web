@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" id="htmlRoot">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Opentidey: توقعات الطقس البحري بالساعة، الرياح والأمواج، المد والجزر، ونشاط الأسماك لشواطئ المغرب وحوض المتوسط.">
+    <title id="pageTitle">Opentidey | توقعات الطقس البحري، المد والجزر ونشاط الأسماك</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <!-- Leaflet CSS for Map -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+        body { font-family: 'Cairo', sans-serif; background-color: #eef2f7; color: #1b2a3a; }
+        .dark-card { background:#fff; border:1px solid #dbe3ec; box-shadow:0 1px 3px rgba(16,42,67,.08); }
+        #map { height: 280px; border-radius: 0.75rem; }
+        html { scroll-behavior: smooth; scroll-padding-top: 60px; }
+        .wf-top { background: linear-gradient(180deg,#0b5fa5,#0a4f8c); }
+        .wf-nav { background:#093f73; }
+        .wf-nav a { color:#cfe3f5; font-size:.8rem; font-weight:700; padding:.65rem 1rem; white-space:nowrap; border-bottom:3px solid transparent; }
+        .wf-nav a:hover { color:#fff; border-color:#7cc4f5; }
+        thead th { text-transform:uppercase; letter-spacing:.03em; font-size:.65rem; }
+        .wcell { box-shadow: inset 0 0 0 1px rgba(15,23,42,.08); border-radius:6px; padding:.35rem .5rem; font-weight:800; color:#10202e; text-align:center; min-width:68px; }
+        .wf-day td { background:#0b5fa5; color:#fff; font-weight:800; padding:.4rem .75rem; font-size:.75rem; }
+        footer { background:#0a3d6b !important; border-color:#0a3d6b !important; }
+        footer p, footer span, footer a.underline { color:#cfe3f5 !important; }
+        footer p.font-bold { color:#fff !important; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+    <!-- Popup Ad Modal -->
+    <div id="popupAd" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+        <div class="relative bg-[#ffffff] border border-[#d5dde6] rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl">
+            <button onclick="closePopupAd()" data-i18n-aria="closeLabel" aria-label="إغلاق" class="absolute top-3 ltr:left-3 rtl:right-3 text-slate-500 hover:text-slate-900 bg-[#f2f5f9] w-8 h-8 rounded-full flex items-center justify-center border border-[#d5dde6]">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="text-[#0b6fb8] text-4xl mb-3">
+                <i class="fa-solid fa-fish-fins"></i>
+            </div>
+            <h3 id="popupTitle" data-i18n="popupTitle" class="text-xl font-bold text-slate-900 mb-2">عروض حصرية على معدات الصيد</h3>
+            <p id="popupDesc" data-i18n="popupDesc" class="text-xs text-slate-600 mb-4">اكتشف أفضل القصبات والبكرات بأسعار خاصة لمتابعي Opentidey.</p>
+            <div class="bg-[#f2f5f9] p-3 rounded-xl border border-dashed border-[#d5dde6] mb-4">
+                <span id="popupTag" data-i18n="popupTag" class="text-xs text-amber-600 font-bold block">محتوى إعلاني</span>
+            </div>
+            <button onclick="closePopupAd()" id="popupBtn" data-i18n="popupBtn" class="w-full py-2.5 bg-[#0b6fb8] text-[#f2f5f9] font-bold rounded-xl hover:bg-[#0a5a96] hover:text-white transition">
+                متابعة تصفح الموقع
+            </button>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="wf-top shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row items-center gap-3 md:gap-6">
+            <a href="#" class="flex items-center gap-2 text-white shrink-0">
+                <span class="w-10 h-10 rounded-lg bg-white/15 flex items-center justify-center text-xl"><i class="fa-solid fa-wind"></i></span>
+                <span>
+                    <span class="block text-2xl font-black leading-none tracking-tight">Opentidey</span>
+                    <span id="headerSubtitle" data-i18n="headerSubtitle" class="block text-[10px] text-sky-100/90 mt-1">الطقس البحري والمد والجزر ونشاط الأسماك</span>
+                </span>
+            </a>
+            <div class="relative flex-1 w-full md:max-w-xl md:mx-auto">
+                <div class="absolute inset-y-0 ltr:left-0 rtl:right-0 flex items-center ltr:pl-4 rtl:pr-4 pointer-events-none text-slate-400"><i class="fa-solid fa-magnifying-glass"></i></div>
+                <input type="text" id="searchInput" placeholder="ابحث عن ميناء أو شاطئ أو مدينة (تمارة، طنجة، برشلونة...)" data-i18n-placeholder="searchPlaceholder" data-i18n-aria="searchPlaceholder" autocomplete="off"
+                    class="w-full ltr:pl-11 ltr:pr-4 rtl:pr-11 rtl:pl-4 py-3 rounded-full bg-white border-0 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-sky-300/60 text-sm shadow-inner">
+                <div id="searchResults" class="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl hidden max-h-60 overflow-y-auto text-sm"></div>
+            </div>
+            <div class="flex bg-black/20 rounded-full p-1 shrink-0">
+                <button onclick="changeLanguage('ar')" id="langAr" class="px-3 py-1.5 text-xs font-bold rounded-full bg-white text-[#0b5fa5] transition">العربية</button>
+                <button onclick="changeLanguage('fr')" id="langFr" class="px-3 py-1.5 text-xs font-bold rounded-full text-white/85 hover:text-white transition">Français</button>
+                <button onclick="changeLanguage('en')" id="langEn" class="px-3 py-1.5 text-xs font-bold rounded-full text-white/85 hover:text-white transition">English</button>
+            </div>
+        </div>
+        <nav class="wf-nav"><div class="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto">
+            <a href="#forecast" data-i18n="navForecast">التوقعات</a>
+            <a href="#fish" data-i18n="navFish">نشاط الأسماك</a>
+            <a href="#tides" data-i18n="navTides">المد والجزر</a>
+            <a href="#mapSec" data-i18n="navMap">الخريطة</a>
+            <a href="#videos" data-i18n="navVideos">الفيديوهات</a>
+            <a href="#about" data-i18n="navAbout">من نحن</a>
+            <a href="#contact" data-i18n="navContact">تواصل</a>
+        </div></nav>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-6 w-full flex-grow space-y-6">
+
+        <div class="w-full bg-[#ffffff] border border-dashed border-[#d5dde6] p-3 rounded-xl text-center text-xs text-slate-500">
+            <span class="block text-[10px] text-amber-600 mb-1" data-i18n="ad1Tag">إعلان</span>
+            <p data-i18n="ad1Text">مساحة إعلانية</p>
+        </div>
+
+        <div class="dark-card p-6 rounded-2xl shadow-xl bg-gradient-to-r from-[#ffffff] to-[#f2f5f9] ltr:border-l-4 ltr:border-l-[#0b6fb8] rtl:border-r-4 rtl:border-r-[#0b6fb8]">
+            <h2 class="text-xl font-bold text-[#0b6fb8] mb-2 flex items-center gap-2">
+                <i class="fa-solid fa-compass"></i> <span data-i18n="aboutTitle">كل ما تحتاجه قبل رحلة الصيد</span>
+            </h2>
+            <p id="aboutText" data-i18n="aboutText" class="text-sm text-slate-600 leading-relaxed">
+                يجمع Opentidey في صفحة واحدة توقعات الرياح والأمواج وحرارة المياه، وأوقات المد والجزر، ومؤشراً تقديرياً لنشاط الأسماك، لمساعدتك على تخطيط رحلتك البحرية بثقة. البيانات استرشادية، فتحقق دائماً من النشرات الرسمية قبل الإبحار.
+            </p>
+        </div>
+
+        <div class="dark-card p-6 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-4 shadow-xl">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs bg-[#0b6fb8]/20 text-[#0b6fb8] px-3 py-1 rounded-full font-semibold" data-i18n="currentLocationBadge">الموقع المحدد</span>
+                    <button id="favoriteBtn" onclick="toggleFavorite()" class="text-xs bg-yellow-500/20 text-amber-600 px-3 py-1 rounded-full font-semibold hover:bg-yellow-500/30 transition">
+                        <i class="fa-regular fa-star ltr:mr-1 rtl:ml-1"></i> <span data-i18n="favAdd">حفظ في المفضلة</span>
+                    </button>
+                </div>
+                <h2 id="locationTitle" class="text-3xl font-extrabold mt-2 text-slate-900">تمارة، المغرب</h2>
+                <p id="locationCoords" class="text-sm text-slate-500 mt-1" data-i18n="loadingCoords">جارٍ تحميل البيانات...</p>
+            </div>
+            <div class="flex gap-4">
+                <div class="text-center px-4 py-2 bg-[#f2f5f9] rounded-xl border border-[#d5dde6]">
+                    <span class="block text-xs text-slate-500" data-i18n="windLabel">الرياح الحالية</span>
+                    <span id="summaryWind" class="text-lg font-bold text-[#0b6fb8]">--</span>
+                </div>
+                <div class="text-center px-4 py-2 bg-[#f2f5f9] rounded-xl border border-[#d5dde6]">
+                    <span class="block text-xs text-slate-500" data-i18n="waveLabel">ارتفاع الأمواج</span>
+                    <span id="summaryWave" class="text-lg font-bold text-[#0b6fb8]">--</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-full bg-[#ffffff] border border-dashed border-[#d5dde6] p-3 rounded-xl text-center text-xs text-slate-500">
+            <span class="block text-[10px] text-amber-600 mb-1" data-i18n="ad2Tag">إعلان</span>
+            <p data-i18n="ad2Text">مساحة إعلانية</p>
+        </div>
+
+        <div id="favoritesBar" class="hidden flex items-center gap-2 overflow-x-auto pb-2">
+            <span class="text-xs text-slate-500 whitespace-nowrap"><i class="fa-solid fa-star text-amber-600 ltr:mr-1 rtl:ml-1"></i> <span data-i18n="favBarTitle">المفضلة:</span></span>
+            <div id="favoritesList" class="flex gap-2"></div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div id="forecast" class="lg:col-span-3 dark-card p-6 rounded-2xl shadow-xl overflow-hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold flex items-center gap-2 text-[#0b6fb8]">
+                        <i class="fa-solid fa-wind"></i> <span data-i18n="tableTitle">التوقعات البحرية لـ 72 ساعة</span>
+                    </h3>
+                    <span class="text-xs bg-[#f2f5f9] text-green-600 px-3 py-1 rounded-lg border border-[#d5dde6]" id="updateTimeTag" data-i18n="liveTag">بيانات محدّثة</span>
+                </div>
+                <div class="overflow-x-auto overflow-y-auto" style="max-height:640px">
+                    <table class="w-full ltr:text-left rtl:text-right text-xs">
+                        <thead class="sticky top-0 z-10 bg-[#f2f5f9] text-slate-600 border-b border-[#d5dde6]">
+                            <tr>
+                                <th class="px-2 py-2" data-i18n="thHour">الوقت</th>
+                                <th class="px-2 py-2" data-i18n="thVagues">الأمواج</th>
+                                <th class="px-2 py-2" data-i18n="thWind">الرياح</th>
+                                <th class="px-2 py-2" data-i18n="thMeteo">الطقس</th>
+                                <th class="px-2 py-2" data-i18n="thAir">الحرارة والضغط</th>
+                                <th class="px-2 py-2" data-i18n="thWater">حرارة الماء</th>
+                                <th class="px-2 py-2" data-i18n="thMarées">المد والجزر</th>
+                                <th class="px-2 py-2" data-i18n="thFish">نشاط الأسماك</th>
+                            </tr>
+                        </thead>
+                        <tbody id="weatherTableBody" class="divide-y divide-[#d5dde6]">
+                            <tr><td colspan="8" class="p-6 text-center text-slate-500" data-i18n="tableLoading">جارٍ تحميل التوقعات...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p id="tideColNoteEl" class="mt-2 text-[10px] text-slate-500 leading-relaxed" data-i18n="tideColNote">قيم المد والجزر نموذجية نسبةً لمتوسط مستوى سطح البحر (+ أعلى منه، − أدنى منه)، والأسهم تبيّن اتجاه المياه. تقل دقة التوقعات كلما ابتعد اليوم عن الحاضر.</p>
+                <p class="mt-3 text-[10px] text-slate-500 leading-relaxed" data-i18n="fishNote">مؤشر تقديري.</p>
+            </div>
+
+            <div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div id="fish" class="dark-card p-6 rounded-2xl shadow-xl">
+                    <h3 class="text-xl font-bold mb-4 flex items-center gap-2 text-green-600">
+                        <i class="fa-solid fa-fish"></i> <span data-i18n="solunarTitle">نشاط الأسماك خلال اليوم</span>
+                    </h3>
+                    <div id="solunarList" class="space-y-2.5 text-sm"></div>
+                    <p class="text-[10px] text-slate-500 mt-3" data-i18n="solNote">تقدير تقريبي</p>
+                </div>
+
+                <div id="tides" class="dark-card p-6 rounded-2xl shadow-xl">
+                    <h3 class="text-xl font-bold mb-4 flex items-center gap-2 text-blue-600">
+                        <i class="fa-solid fa-water"></i> <span data-i18n="tidesTitle">المد والجزر القادم</span>
+                    </h3>
+                    <div id="tideList" class="space-y-2.5 text-sm"></div>
+                    <p id="tideNoteEl" class="text-[10px] text-slate-500 mt-3">قيم نموذجية نسبةً لمتوسط مستوى سطح البحر؛ للملاحة استخدم الجداول الرسمية.</p>
+                </div>
+
+                <div class="md:col-span-3 md:order-last w-full bg-[#ffffff] border border-dashed border-[#d5dde6] p-3 rounded-xl text-center text-xs text-slate-500">
+                    <span class="block text-[10px] text-amber-600 mb-1" data-i18n="ad3Tag">إعلان</span>
+                    <p data-i18n="ad3Text">مساحة إعلانية</p>
+                </div>
+
+                <div id="mapSec" class="dark-card p-6 rounded-2xl shadow-xl">
+                    <h3 class="text-xl font-bold mb-4 flex items-center gap-2 text-[#0b6fb8]">
+                        <i class="fa-solid fa-globe"></i> <span data-i18n="mapTitle">خريطة المواقع الساحلية</span>
+                    </h3>
+                    <div id="map"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <div id="videos" class="dark-card p-6 rounded-2xl shadow-xl text-center">
+            <h3 class="text-xl font-bold mb-2 flex items-center justify-center gap-2 text-red-500">
+                <i class="fa-brands fa-youtube"></i> <span data-i18n="ytSectionTitle">آخر فيديوهات الرايس مصطفى</span>
+            </h3>
+            <p class="text-xs text-slate-500 mb-4" data-i18n="ytSectionDesc">شاهد أحدث رحلات الصيد والتحديات البحرية</p>
+            <div class="max-w-2xl mx-auto">
+                <div class="relative w-full overflow-hidden rounded-xl border border-[#d5dde6]" style="aspect-ratio:16/9">
+                    <iframe class="absolute inset-0 w-full h-full" src="https://www.youtube.com/embed/videoseries?list=UUVW_H3tFjqXBwlg_NMoXdTw" title="فيديوهات قناة الرايس مصطفى على يوتيوب" data-i18n-title="ytIframeTitle" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+                </div>
+            </div>
+            <div class="mt-3">
+                <a href="https://www.youtube.com/@rays.mustapha" target="_blank" rel="noopener" class="inline-flex items-center gap-2 text-xs bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl font-bold transition">
+                    <i class="fa-brands fa-youtube"></i> <span data-i18n="ytBtnText">اشترك في القناة على يوتيوب</span>
+                </a>
+            </div>
+        </div>
+
+
+        <div id="about" class="dark-card p-6 rounded-2xl shadow-xl">
+            <h3 class="text-xl font-bold mb-3 flex items-center gap-2 text-[#0b6fb8]">
+                <i class="fa-solid fa-anchor"></i> <span data-i18n="aboutUsTitle">من نحن</span>
+            </h3>
+            <div class="space-y-3 text-sm text-slate-600 leading-relaxed">
+                <p data-i18n="aboutUsP1">Opentidey منصة موجهة لصيادي الأسماك وهواة البحر في المغرب وحوض المتوسط، تجمع في صفحة واحدة ما تحتاجه قبل الخروج إلى البحر: الرياح والأمواج وحرارة المياه وأوقات المد والجزر.</p>
+                <p data-i18n="aboutUsP2">نستمد التوقعات من خدمة Open-Meteo المفتوحة ونعرضها بشكل مبسّط يسهل قراءته على الجوال. أما مؤشر نشاط الأسماك فهو تقدير نحسبه من عبور القمر ووقت الفجر والغروب وحركة المد والرياح والموج واتجاه الضغط.</p>
+                <p data-i18n="aboutUsP3">هدفنا مساعدتك على اختيار الوقت والمكان المناسبين لرحلتك، مع التذكير دائماً بأن السلامة أولاً: البيانات استرشادية ولا تغني عن النشرات الرسمية.</p>
+            </div>
+        </div>
+
+        <div id="contact" class="dark-card p-6 rounded-2xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h3 class="text-xl font-bold mb-1 flex items-center gap-2 text-[#0b6fb8]">
+                    <i class="fa-solid fa-envelope"></i> <span data-i18n="contactTitle">تواصل معنا</span>
+                </h3>
+                <p class="text-sm text-slate-600" data-i18n="contactDesc">للاقتراحات، أو للإبلاغ عن خطأ في البيانات، أو لطلبات الإعلان والشراكات، راسلنا عبر البريد الإلكتروني.</p>
+            </div>
+            <a href="mailto:contact@opentidey.com" class="shrink-0 inline-flex items-center justify-center gap-2 bg-[#0b5fa5] hover:bg-[#093f73] text-white text-sm font-bold px-5 py-2.5 rounded-xl transition">
+                <i class="fa-solid fa-paper-plane"></i> <span data-i18n="contactBtn">راسلنا</span>
+            </a>
+        </div>
+
+        <details id="privacy" class="dark-card p-6 rounded-2xl shadow-xl">
+            <summary class="cursor-pointer text-xl font-bold flex items-center gap-2 text-[#0b6fb8]">
+                <i class="fa-solid fa-shield-halved"></i> <span data-i18n="privacyTitle">سياسة الخصوصية</span>
+            </summary>
+            <div class="mt-4 space-y-4">
+                <p class="text-[11px] text-slate-500" data-i18n="privacyUpdated">آخر تحديث: 1 نوفمبر 2026</p>
+                <div>
+                    <h4 class="font-bold text-slate-900 text-sm mb-1" data-i18n="privacy1h">المعلومات التي نجمعها</h4>
+                    <p class="text-xs text-slate-600 leading-relaxed" data-i18n="privacy1p">لا يطلب Opentidey إنشاء حساب، ولا يجمع اسمك أو بريدك أو رقم هاتفك من خلال الصفحة. وقد يسجل مزوّد الاستضافة بيانات تقنية قياسية (مثل عنوان IP) لأغراض الأمان والإحصاء.</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-slate-900 text-sm mb-1" data-i18n="privacy2h">ما يُحفظ على جهازك</h4>
+                    <p class="text-xs text-slate-600 leading-relaxed" data-i18n="privacy2p">نحفظ في متصفحك فقط اللغة التي اخترتها ومواقعك المفضلة والأماكن التي بحثت عنها. لا تُرسل هذه البيانات إلينا، ويمكنك حذفها في أي وقت بمسح بيانات المتصفح.</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-slate-900 text-sm mb-1" data-i18n="privacy3h">خدمات الأطراف الثالثة</h4>
+                    <p class="text-xs text-slate-600 leading-relaxed" data-i18n="privacy3p">نستعين بخدمات خارجية تستقبل بعض البيانات التقنية مثل عنوان IP: Open-Meteo (تتلقى إحداثيات المكان المختار ونص البحث لجلب الطقس والبحث عن الأماكن)، وOpenStreetMap (لعرض الخريطة)، ويوتيوب من Google (لتشغيل الفيديو، وقد يضع ملفات تعريف ارتباط)، وGoogle Fonts وCDNJS وTailwind (لتحميل الخطوط والتنسيق). تخضع هذه الخدمات لسياسات الخصوصية الخاصة بها.</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-slate-900 text-sm mb-1" data-i18n="privacy4h">الإعلانات</h4>
+                    <p class="text-xs text-slate-600 leading-relaxed" data-i18n="privacy4p">قد يعرض الموقع إعلانات من شركاء إعلانيين، وقد يستخدم هؤلاء ملفات تعريف الارتباط لعرض إعلانات مناسبة. يمكنك التحكم في ملفات تعريف الارتباط من إعدادات متصفحك.</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-slate-900 text-sm mb-1" data-i18n="privacy5h">الاستفسارات والتحديثات</h4>
+                    <p class="text-xs text-slate-600 leading-relaxed" data-i18n="privacy5p">لأي استفسار عن الخصوصية أو لطلب حذف بيانات، راسلنا على contact@opentidey.com. قد نحدّث هذه السياسة من حين لآخر، ويظهر تاريخ آخر تحديث أعلاه.</p>
+                </div>
+            </div>
+        </details>
+
+    </main>
+
+    <footer class="bg-[#ffffff] border-t border-[#d5dde6] py-8 px-4 mt-12 text-center text-sm text-slate-500">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <p class="font-bold text-slate-900 mb-1">Opentidey © 2026</p>
+                <p class="text-xs text-slate-500" data-i18n="footerRights">منصة متخصصة في حالة الطقس البحري وأنشطة الصيد</p>
+                <p class="text-[10px] mt-2 max-w-xl leading-relaxed" data-i18n="disclaimer">تنبيه: البيانات تقديرية ومصدرها نماذج مجانية (Open-Meteo)، ولا تغني عن النشرات الرسمية للأرصاد والملاحة. تحقق من الأحوال الفعلية قبل الإبحار.</p>
+                <p class="text-xs mt-2"><a href="#privacy" onclick="document.getElementById('privacy').open = true" class="underline" data-i18n="privacyLink">سياسة الخصوصية</a></p>
+                <p class="text-xs text-[#0b6fb8] mt-2">
+                    <i class="fa-solid fa-envelope ltr:mr-1 rtl:ml-1"></i> <span data-i18n="contactText">للتواصل والإعلانات:</span> 
+                    <a href="mailto:contact@opentidey.com" class="underline hover:text-slate-900">contact@opentidey.com</a>
+                </p>
+            </div>
+            <div class="flex gap-4 text-lg">
+                <a href="https://www.youtube.com/@rays.mustapha" target="_blank" rel="noopener" aria-label="YouTube" class="text-red-500 hover:text-red-600"><i class="fa-brands fa-youtube"></i></a>
+                <a href="#" aria-label="Facebook" class="text-blue-500 hover:text-blue-600"><i class="fa-brands fa-facebook"></i></a>
+                <a href="#" aria-label="Instagram" class="text-pink-600 hover:text-pink-400"><i class="fa-brands fa-instagram"></i></a>
+                <a href="#" aria-label="TikTok" class="text-cyan-600 hover:text-sky-600"><i class="fa-brands fa-tiktok"></i></a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+        const translations = {
+            ar: {
+                pageTitle: "Opentidey | توقعات الطقس البحري، المد والجزر ونشاط الأسماك",
+                closeLabel: "إغلاق",
+                popupTitle: "عروض حصرية على معدات الصيد",
+                popupDesc: "اكتشف أفضل القصبات والبكرات بأسعار خاصة لمتابعي Opentidey.",
+                popupTag: "محتوى إعلاني",
+                popupBtn: "متابعة تصفح الموقع",
+                headerSubtitle: "الطقس البحري والمد والجزر ونشاط الأسماك",
+                searchPlaceholder: "ابحث عن ميناء أو شاطئ أو مدينة (تمارة، طنجة، برشلونة...)",
+                searchNoResults: "لا توجد نتائج",
+                ad1Tag: "إعلان",
+                ad1Text: "مساحة إعلانية",
+                aboutTitle: "كل ما تحتاجه قبل رحلة الصيد",
+                aboutText: "يجمع Opentidey في صفحة واحدة توقعات الرياح والأمواج وحرارة المياه، وأوقات المد والجزر، ومؤشراً تقديرياً لنشاط الأسماك، لمساعدتك على تخطيط رحلتك البحرية بثقة. البيانات استرشادية، فتحقق دائماً من النشرات الرسمية قبل الإبحار.",
+                currentLocationBadge: "الموقع المحدد",
+                favAdd: "حفظ في المفضلة",
+                favRemove: "محفوظ في المفضلة",
+                windLabel: "الرياح الحالية",
+                waveLabel: "ارتفاع الأمواج",
+                loadingCoords: "جارٍ تحميل البيانات...",
+                coords: "خط العرض {lat} · خط الطول {lon}",
+                ad2Tag: "إعلان",
+                ad2Text: "مساحة إعلانية",
+                favBarTitle: "المفضلة:",
+                tableTitle: "التوقعات البحرية لـ 72 ساعة",
+                liveTag: "بيانات محدّثة",
+                liveLoading: "جارٍ التحديث...",
+                liveError: "غير متصل",
+                tableLoading: "جارٍ تحميل التوقعات...",
+                tableError: "تعذّر تحميل البيانات حالياً. تحقق من اتصالك بالإنترنت ثم أعد المحاولة.",
+                thHour: "الوقت",
+                navForecast: "التوقعات", navFish: "نشاط الأسماك", navTides: "المد والجزر", navMap: "الخريطة", legendTitle: "سرعة الرياح (كم/س)",
+                step1: "كل ساعة", step3: "كل 3 ساعات", tideHigh: "مد عالٍ", tideLow: "جزر منخفض", tideNone: "لا تتوفر بيانات المد والجزر لهذا الموقع حالياً.", tideNote: "قيم نموذجية نسبةً لمتوسط مستوى سطح البحر؛ للملاحة استخدم الجداول الرسمية.",
+                wxClear: "صافٍ", wxPartly: "غائم جزئياً", wxCloud: "غائم", wxFog: "ضباب", wxDrizzle: "رذاذ", wxRain: "مطر", wxSnow: "ثلج", wxStorm: "عاصفة رعدية", solMajor: "فترة رئيسية", solMinor: "فترة ثانوية", solNote: "تقدير تقريبي مبني على عبور القمر في موقعك (±10 دقائق).", searching: "جاري البحث...",
+                thWater: "حرارة الماء",
+                thFish: "نشاط الأسماك", fishL0: "خطر", fishL1: "ضعيف", fishL2: "مقبول", fishL3: "جيد", fishL4: "جيد جداً", fishL5: "ممتاز", fSol: "قمر", fSun: "شروق/غروب", fTide: "مد", fWind: "رياح", fWave: "موج", fPres: "ضغط", fishNote: "مؤشر نشاط الأسماك تقديري وليس مضموناً: يجمع عبور القمر (35) + وقت الفجر والغروب (20) + حركة المد (20) + الرياح (15) + الموج (10) + اتجاه الضغط (10). يمرّ المؤشر إلى «خطر» عندما تتجاوز الرياح 40 كم/س أو الموج 3 م. اضغط على الخلية أو مرّر المؤشر فوقها لرؤية التفاصيل.", tideNoteWT: "مصدر المد: تنبؤات توافقية من WorldTides.",
+                thWind: "الرياح",
+                thMeteo: "الطقس",
+                thAir: "الحرارة والضغط",
+                thVagues: "الأمواج",
+                thMarées: "المد والجزر",
+                weatherSunny: "مشمس",
+                weatherPartly: "غائم جزئياً",
+                tideRising: "مد صاعد",
+                tideFalling: "جزر نازل",
+                unitSpeed: "كم/س",
+                unitMeter: "م",
+                unitSecond: "ث",
+                unitPressure: "هكتوباسكال",
+                hourSuffix: "",
+                solunarTitle: "نشاط الأسماك خلال اليوم",
+                solunarMajor1: "فترة رئيسية أولى",
+                solunarMinor1: "فترة ثانوية أولى",
+                solunarMajor2: "فترة رئيسية ثانية",
+                solunarMinor2: "فترة ثانوية ثانية",
+                solunarTime1: "05:00 - 07:00 (ذروة الفجر)",
+                solunarTime2: "11:15 - 12:15 (منتصف النهار)",
+                solunarTime3: "17:30 - 19:30 (ذروة الغروب)",
+                solunarTime4: "23:30 - 00:30 (منتصف الليل)",
+                solunarHigh: "🐟🐟🐟 نشاط مرتفع",
+                solunarMed: "🐟🐟 نشاط متوسط",
+                tidesTitle: "المد والجزر القادم",
+                highTide1: "مد عالٍ أول",
+                highTideDesc1: "ارتفاع المياه الأقصى",
+                lowTide1: "جزر منخفض أول",
+                lowTideDesc1: "بداية انحسار المياه",
+                highTide2: "مد عالٍ ثانٍ",
+                highTideDesc2: "ارتفاع المياه المسائي",
+                lowTide2: "جزر منخفض ثانٍ",
+                lowTideDesc2: "أدنى مستوى للمياه",
+                ad3Tag: "إعلان",
+                ad3Text: "مساحة إعلانية",
+                mapTitle: "خريطة المواقع الساحلية",
+                ytSectionTitle: "آخر فيديوهات الرايس مصطفى",
+                ytSectionDesc: "شاهد أحدث رحلات الصيد والتحديات البحرية",
+                ytIframeTitle: "فيديوهات قناة الرايس مصطفى على يوتيوب",
+                ytBtnText: "اشترك في القناة على يوتيوب",
+                footerRights: "منصة متخصصة في حالة الطقس البحري وأنشطة الصيد",
+                contactText: "للتواصل والإعلانات:",
+                disclaimer: "تنبيه: البيانات تقديرية ومصدرها نماذج مجانية (Open-Meteo)، ولا تغني عن النشرات الرسمية للأرصاد والملاحة. تحقق من الأحوال الفعلية قبل الإبحار.",
+                navVideos: "الفيديوهات",
+                navAbout: "من نحن",
+                navContact: "تواصل",
+                aboutUsTitle: "من نحن",
+                aboutUsP1: "Opentidey منصة موجهة لصيادي الأسماك وهواة البحر في المغرب وحوض المتوسط، تجمع في صفحة واحدة ما تحتاجه قبل الخروج إلى البحر: الرياح والأمواج وحرارة المياه وأوقات المد والجزر.",
+                aboutUsP2: "نستمد التوقعات من خدمة Open-Meteo المفتوحة ونعرضها بشكل مبسّط يسهل قراءته على الجوال. أما مؤشر نشاط الأسماك فهو تقدير نحسبه من عبور القمر ووقت الفجر والغروب وحركة المد والرياح والموج واتجاه الضغط.",
+                aboutUsP3: "هدفنا مساعدتك على اختيار الوقت والمكان المناسبين لرحلتك، مع التذكير دائماً بأن السلامة أولاً: البيانات استرشادية ولا تغني عن النشرات الرسمية.",
+                contactTitle: "تواصل معنا",
+                contactDesc: "للاقتراحات، أو للإبلاغ عن خطأ في البيانات، أو لطلبات الإعلان والشراكات، راسلنا عبر البريد الإلكتروني.",
+                contactBtn: "راسلنا",
+                privacyLink: "سياسة الخصوصية",
+                privacyTitle: "سياسة الخصوصية",
+                privacyUpdated: "آخر تحديث: 1 نوفمبر 2026",
+                privacy1h: "المعلومات التي نجمعها",
+                privacy1p: "لا يطلب Opentidey إنشاء حساب، ولا يجمع اسمك أو بريدك أو رقم هاتفك من خلال الصفحة. وقد يسجل مزوّد الاستضافة بيانات تقنية قياسية (مثل عنوان IP) لأغراض الأمان والإحصاء.",
+                privacy2h: "ما يُحفظ على جهازك",
+                privacy2p: "نحفظ في متصفحك فقط اللغة التي اخترتها ومواقعك المفضلة والأماكن التي بحثت عنها. لا تُرسل هذه البيانات إلينا، ويمكنك حذفها في أي وقت بمسح بيانات المتصفح.",
+                privacy3h: "خدمات الأطراف الثالثة",
+                privacy3p: "نستعين بخدمات خارجية تستقبل بعض البيانات التقنية مثل عنوان IP: Open-Meteo (تتلقى إحداثيات المكان المختار ونص البحث لجلب الطقس والبحث عن الأماكن)، وOpenStreetMap (لعرض الخريطة)، ويوتيوب من Google (لتشغيل الفيديو، وقد يضع ملفات تعريف ارتباط)، وGoogle Fonts وCDNJS وTailwind (لتحميل الخطوط والتنسيق). تخضع هذه الخدمات لسياسات الخصوصية الخاصة بها.",
+                privacy4h: "الإعلانات",
+                privacy4p: "قد يعرض الموقع إعلانات من شركاء إعلانيين، وقد يستخدم هؤلاء ملفات تعريف الارتباط لعرض إعلانات مناسبة. يمكنك التحكم في ملفات تعريف الارتباط من إعدادات متصفحك.",
+                privacy5h: "الاستفسارات والتحديثات",
+                privacy5p: "لأي استفسار عن الخصوصية أو لطلب حذف بيانات، راسلنا على contact@opentidey.com. قد نحدّث هذه السياسة من حين لآخر، ويظهر تاريخ آخر تحديث أعلاه.",
+                tideColNote: "قيم المد والجزر نموذجية نسبةً لمتوسط مستوى سطح البحر (+ أعلى منه، − أدنى منه)، والأسهم تبيّن اتجاه المياه. تقل دقة التوقعات كلما ابتعد اليوم عن الحاضر.",
+                tideNoteHM: "تقدير توافقي معايَر للساحل الأطلسي المغربي، والارتفاعات تقريبية فوق صفر الخرائط؛ للملاحة استخدم الجداول الرسمية.",
+                tideColNoteHM: "ارتفاعات المد والجزر تقريبية فوق صفر الخرائط، ومحسوبة بنموذج توافقي معايَر للساحل الأطلسي المغربي. تأثير الطقس (الضغط والرياح) غير محسوب."
+            },
+            fr: {
+                pageTitle: "Opentidey | Météo marine, marées et activité des poissons",
+                closeLabel: "Fermer",
+                popupTitle: "Offres exclusives sur le matériel de pêche",
+                popupDesc: "Découvrez une sélection de cannes et moulinets à prix préférentiels pour la communauté Opentidey.",
+                popupTag: "Contenu sponsorisé",
+                popupBtn: "Continuer vers le site",
+                headerSubtitle: "Météo marine, marées et activité des poissons",
+                searchPlaceholder: "Rechercher un port, une plage ou une ville (Témara, Tanger, Barcelone...)",
+                searchNoResults: "Aucun résultat",
+                ad1Tag: "Publicité",
+                ad1Text: "Espace publicitaire",
+                aboutTitle: "Tout ce qu'il faut savoir avant de prendre la mer",
+                aboutText: "Opentidey réunit sur une seule page les prévisions de vent, de vagues et de température de l'eau, les horaires de marées et un indice estimatif d'activité des poissons, pour vous aider à préparer vos sorties en mer. Les données sont indicatives : consultez toujours les bulletins officiels avant d'appareiller.",
+                currentLocationBadge: "Lieu sélectionné",
+                favAdd: "Enregistrer",
+                favRemove: "Enregistré",
+                windLabel: "Vent actuel",
+                waveLabel: "Hauteur des vagues",
+                loadingCoords: "Chargement des données...",
+                coords: "Lat. {lat} · Lon. {lon}",
+                ad2Tag: "Publicité",
+                ad2Text: "Espace publicitaire",
+                favBarTitle: "Favoris :",
+                tableTitle: "Prévisions marines sur 72 h",
+                liveTag: "Données à jour",
+                liveLoading: "Mise à jour...",
+                liveError: "Hors ligne",
+                tableLoading: "Chargement des prévisions...",
+                tableError: "Impossible de charger les données pour le moment. Vérifiez votre connexion et réessayez.",
+                thHour: "Heure",
+                navForecast: "Prévisions", navFish: "Activité des poissons", navTides: "Marées", navMap: "Carte", legendTitle: "Vitesse du vent (km/h)",
+                step1: "Toutes les heures", step3: "Toutes les 3 h", tideHigh: "Marée haute", tideLow: "Marée basse", tideNone: "Données de marée indisponibles pour ce lieu.", tideNote: "Valeurs modélisées par rapport au niveau moyen de la mer ; pour la navigation, utilisez les annuaires officiels.",
+                wxClear: "Dégagé", wxPartly: "Partiellement nuageux", wxCloud: "Nuageux", wxFog: "Brouillard", wxDrizzle: "Bruine", wxRain: "Pluie", wxSnow: "Neige", wxStorm: "Orage", solMajor: "Période majeure", solMinor: "Période mineure", solNote: "Estimation approximative basée sur le passage de la Lune à votre position (±10 min).", searching: "Recherche...",
+                thWater: "Temp. de l'eau",
+                thFish: "Activité des poissons", fishL0: "Danger", fishL1: "Faible", fishL2: "Correct", fishL3: "Bon", fishL4: "Très bon", fishL5: "Excellent", fSol: "Lune", fSun: "Aube/crépuscule", fTide: "Marée", fWind: "Vent", fWave: "Houle", fPres: "Pression", fishNote: "Indice estimatif, non garanti : passage de la Lune (35) + aube/crépuscule (20) + mouvement de la marée (20) + vent (15) + houle (10) + tendance de pression (10). Passe à « Danger » si le vent dépasse 40 km/h ou la houle 3 m. Touchez ou survolez une cellule pour le détail.", tideNoteWT: "Source des marées : prédictions harmoniques WorldTides.",
+                thWind: "Vent",
+                thMeteo: "Météo",
+                thAir: "Temp. et pression",
+                thVagues: "Vagues",
+                thMarées: "Marées",
+                weatherSunny: "Ensoleillé",
+                weatherPartly: "Partiellement nuageux",
+                tideRising: "Marée montante",
+                tideFalling: "Marée descendante",
+                unitSpeed: "km/h",
+                unitMeter: "m",
+                unitSecond: "s",
+                unitPressure: "hPa",
+                hourSuffix: "",
+                solunarTitle: "Activité des poissons du jour",
+                solunarMajor1: "1ère période majeure",
+                solunarMinor1: "1ère période mineure",
+                solunarMajor2: "2e période majeure",
+                solunarMinor2: "2e période mineure",
+                solunarTime1: "05:00 - 07:00 (pic de l'aube)",
+                solunarTime2: "11:15 - 12:15 (midi)",
+                solunarTime3: "17:30 - 19:30 (pic du coucher du soleil)",
+                solunarTime4: "23:30 - 00:30 (minuit)",
+                solunarHigh: "🐟🐟🐟 Activité élevée",
+                solunarMed: "🐟🐟 Activité moyenne",
+                tidesTitle: "Prochaines marées",
+                highTide1: "1ère marée haute",
+                highTideDesc1: "Niveau d'eau maximal",
+                lowTide1: "1ère marée basse",
+                lowTideDesc1: "Début du retrait de l'eau",
+                highTide2: "2e marée haute",
+                highTideDesc2: "Pleine mer du soir",
+                lowTide2: "2e marée basse",
+                lowTideDesc2: "Niveau d'eau minimal",
+                ad3Tag: "Publicité",
+                ad3Text: "Espace publicitaire",
+                mapTitle: "Carte des sites côtiers",
+                ytSectionTitle: "Dernières vidéos de Rais Mustapha",
+                ytSectionDesc: "Découvrez les dernières sorties de pêche et défis en mer",
+                ytIframeTitle: "Vidéos de la chaîne YouTube de Rais Mustapha",
+                ytBtnText: "S'abonner sur YouTube",
+                footerRights: "Plateforme spécialisée en météo marine et activités de pêche",
+                contactText: "Contact et publicités :",
+                disclaimer: "Avertissement : données estimatives issues de modèles gratuits (Open-Meteo) ; elles ne remplacent pas les bulletins officiels de météo et de navigation. Vérifiez les conditions réelles avant de prendre la mer.",
+                navVideos: "Vidéos",
+                navAbout: "À propos",
+                navContact: "Contact",
+                aboutUsTitle: "À propos",
+                aboutUsP1: "Opentidey est une plateforme destinée aux pêcheurs et aux amoureux de la mer au Maroc et en Méditerranée. Elle réunit sur une seule page ce qu'il faut savoir avant de sortir en mer : vent, vagues, température de l'eau et horaires de marées.",
+                aboutUsP2: "Les prévisions proviennent du service ouvert Open-Meteo et sont présentées de façon simple, lisible sur mobile. L'indice d'activité des poissons est une estimation calculée à partir du passage de la Lune, de l'aube et du crépuscule, du mouvement de la marée, du vent, des vagues et de la tendance de pression.",
+                aboutUsP3: "Notre objectif est de vous aider à choisir le bon moment et le bon endroit pour votre sortie, en rappelant que la sécurité passe avant tout : les données sont indicatives et ne remplacent pas les bulletins officiels.",
+                contactTitle: "Contactez-nous",
+                contactDesc: "Pour une suggestion, pour signaler une erreur dans les données, ou pour toute demande de publicité ou de partenariat, écrivez-nous par e-mail.",
+                contactBtn: "Nous écrire",
+                privacyLink: "Politique de confidentialité",
+                privacyTitle: "Politique de confidentialité",
+                privacyUpdated: "Dernière mise à jour : 1er novembre 2026",
+                privacy1h: "Informations collectées",
+                privacy1p: "Opentidey ne demande pas de compte et ne collecte, via la page, ni votre nom, ni votre e-mail, ni votre numéro de téléphone. L'hébergeur peut enregistrer des données techniques standard (comme l'adresse IP) à des fins de sécurité et de statistiques.",
+                privacy2h: "Données stockées sur votre appareil",
+                privacy2p: "Seuls la langue choisie, vos lieux favoris et les lieux recherchés sont enregistrés dans votre navigateur. Ces données ne nous sont pas transmises et vous pouvez les supprimer à tout moment en effaçant les données du navigateur.",
+                privacy3h: "Services tiers",
+                privacy3p: "Nous utilisons des services externes qui reçoivent certaines données techniques, dont l'adresse IP : Open-Meteo (reçoit les coordonnées du lieu choisi et le texte recherché pour fournir la météo et la recherche de lieux), OpenStreetMap (affichage de la carte), YouTube de Google (lecture de la vidéo, avec d'éventuels cookies), ainsi que Google Fonts, CDNJS et Tailwind (polices et mise en forme). Ces services appliquent leurs propres politiques de confidentialité.",
+                privacy4h: "Publicité",
+                privacy4p: "Le site peut afficher des publicités de partenaires publicitaires, qui peuvent utiliser des cookies pour proposer des annonces pertinentes. Vous pouvez gérer les cookies dans les paramètres de votre navigateur.",
+                privacy5h: "Questions et mises à jour",
+                privacy5p: "Pour toute question sur la confidentialité ou pour demander la suppression de données, écrivez à contact@opentidey.com. Cette politique peut être mise à jour ; la date de dernière mise à jour figure ci-dessus.",
+                tideColNote: "Valeurs de marée modélisées par rapport au niveau moyen de la mer (+ au-dessus, − en dessous) ; les flèches indiquent le sens du mouvement de l'eau. La précision diminue à mesure que l'échéance s'éloigne.",
+                tideNoteHM: "Estimation harmonique calibrée pour la côte atlantique marocaine ; hauteurs approximatives au-dessus du zéro hydrographique. Pour la navigation, utilisez les tables officielles.",
+                tideColNoteHM: "Hauteurs de marée approximatives au-dessus du zéro hydrographique, issues d'un modèle harmonique calibré pour la côte atlantique marocaine. L'effet de la météo (pression, vent) n'est pas pris en compte."
+            },
+            en: {
+                pageTitle: "Opentidey | Marine Weather, Tides & Fish Activity Forecast",
+                closeLabel: "Close",
+                popupTitle: "Exclusive Fishing Gear Offers",
+                popupDesc: "Discover top rods and reels at special prices for the Opentidey community.",
+                popupTag: "Sponsored",
+                popupBtn: "Continue to site",
+                headerSubtitle: "Marine weather, tides & fish activity",
+                searchPlaceholder: "Search a harbor, beach or city (Temara, Tangier, Barcelona...)",
+                searchNoResults: "No results found",
+                ad1Tag: "Advertisement",
+                ad1Text: "Advertising space",
+                aboutTitle: "Everything you need before you head out",
+                aboutText: "Opentidey brings wind, wave and water-temperature forecasts, tide times and an estimated fish-activity index together on one page to help you plan your trip at sea. Data is indicative — always check official bulletins before heading out.",
+                currentLocationBadge: "Selected location",
+                favAdd: "Save to favorites",
+                favRemove: "Saved",
+                windLabel: "Current wind",
+                waveLabel: "Wave height",
+                loadingCoords: "Loading data...",
+                coords: "Lat {lat} · Lon {lon}",
+                ad2Tag: "Advertisement",
+                ad2Text: "Advertising space",
+                favBarTitle: "Favorites:",
+                tableTitle: "72-Hour Marine Forecast",
+                liveTag: "Updated data",
+                liveLoading: "Updating...",
+                liveError: "Offline",
+                tableLoading: "Loading forecast...",
+                tableError: "Unable to load data right now. Check your connection and try again.",
+                thHour: "Time",
+                navForecast: "Forecast", navFish: "Fish activity", navTides: "Tides", navMap: "Map", legendTitle: "Wind speed (km/h)",
+                step1: "Hourly", step3: "Every 3 hours", tideHigh: "High tide", tideLow: "Low tide", tideNone: "Tide data unavailable for this location.", tideNote: "Modelled values relative to mean sea level; use official tide tables for navigation.",
+                wxClear: "Clear", wxPartly: "Partly cloudy", wxCloud: "Overcast", wxFog: "Fog", wxDrizzle: "Drizzle", wxRain: "Rain", wxSnow: "Snow", wxStorm: "Thunderstorm", solMajor: "Major period", solMinor: "Minor period", solNote: "Approximate estimate from the moon's transit at your location (±10 min).", searching: "Searching...",
+                thWater: "Water temp",
+                thFish: "Fish activity", fishL0: "Unsafe", fishL1: "Poor", fishL2: "Fair", fishL3: "Good", fishL4: "Very good", fishL5: "Excellent", fSol: "Moon", fSun: "Dawn/dusk", fTide: "Tide", fWind: "Wind", fWave: "Waves", fPres: "Pressure", fishNote: "Estimated index, not guaranteed: moon transit (35) + dawn/dusk (20) + tide movement (20) + wind (15) + waves (10) + pressure trend (10). Shows “Unsafe” when wind exceeds 40 km/h or waves exceed 3 m. Tap or hover a cell for the breakdown.", tideNoteWT: "Tide source: WorldTides harmonic predictions.",
+                thWind: "Wind",
+                thMeteo: "Weather",
+                thAir: "Temp & Pressure",
+                thVagues: "Waves",
+                thMarées: "Tides",
+                weatherSunny: "Sunny",
+                weatherPartly: "Partly cloudy",
+                tideRising: "Rising tide",
+                tideFalling: "Falling tide",
+                unitSpeed: "km/h",
+                unitMeter: "m",
+                unitSecond: "s",
+                unitPressure: "hPa",
+                hourSuffix: "",
+                solunarTitle: "Today's Fish Activity",
+                solunarMajor1: "1st Major Period",
+                solunarMinor1: "1st Minor Period",
+                solunarMajor2: "2nd Major Period",
+                solunarMinor2: "2nd Minor Period",
+                solunarTime1: "05:00 - 07:00 (Dawn peak)",
+                solunarTime2: "11:15 - 12:15 (Midday)",
+                solunarTime3: "17:30 - 19:30 (Sunset peak)",
+                solunarTime4: "23:30 - 00:30 (Midnight)",
+                solunarHigh: "🐟🐟🐟 High activity",
+                solunarMed: "🐟🐟 Moderate activity",
+                tidesTitle: "Upcoming Tides",
+                highTide1: "1st High Tide",
+                highTideDesc1: "Maximum water level",
+                lowTide1: "1st Low Tide",
+                lowTideDesc1: "Water begins to recede",
+                highTide2: "2nd High Tide",
+                highTideDesc2: "Evening high water",
+                lowTide2: "2nd Low Tide",
+                lowTideDesc2: "Minimum water level",
+                ad3Tag: "Advertisement",
+                ad3Text: "Advertising space",
+                mapTitle: "Coastal Locations Map",
+                ytSectionTitle: "Latest Videos from Rais Mustapha",
+                ytSectionDesc: "Watch the latest fishing trips and sea challenges",
+                ytIframeTitle: "Rais Mustapha YouTube channel videos",
+                ytBtnText: "Subscribe on YouTube",
+                footerRights: "A platform specialized in marine weather and fishing activity",
+                contactText: "Contact & Advertising:",
+                disclaimer: "Disclaimer: data are estimates from free models (Open-Meteo) and do not replace official weather and navigation bulletins. Check actual conditions before going to sea.",
+                navVideos: "Videos",
+                navAbout: "About",
+                navContact: "Contact",
+                aboutUsTitle: "About Us",
+                aboutUsP1: "Opentidey is a platform for anglers and sea lovers in Morocco and the Mediterranean. It brings together on one page what you need before heading out: wind, waves, water temperature and tide times.",
+                aboutUsP2: "Forecasts come from the open Open-Meteo service and are presented in a simple, mobile-friendly way. The fish-activity index is an estimate calculated from the moon transit, dawn and dusk, tide movement, wind, waves and pressure trend.",
+                aboutUsP3: "Our goal is to help you pick the right time and place for your trip, always reminding you that safety comes first: the data is indicative and does not replace official bulletins.",
+                contactTitle: "Contact Us",
+                contactDesc: "For suggestions, to report a data error, or for advertising and partnership requests, email us.",
+                contactBtn: "Email us",
+                privacyLink: "Privacy Policy",
+                privacyTitle: "Privacy Policy",
+                privacyUpdated: "Last updated: November 1, 2026",
+                privacy1h: "Information we collect",
+                privacy1p: "Opentidey does not require an account and does not collect your name, email or phone number through the page. The hosting provider may log standard technical data (such as IP address) for security and statistics.",
+                privacy2h: "Data stored on your device",
+                privacy2p: "Only your chosen language, favorite spots and places you searched for are saved in your browser. This data is not sent to us, and you can delete it at any time by clearing your browser data.",
+                privacy3h: "Third-party services",
+                privacy3p: "We use external services that receive some technical data such as your IP address: Open-Meteo (receives the coordinates of the selected place and your search text to provide weather and place search), OpenStreetMap (map display), YouTube by Google (video playback, which may set cookies), and Google Fonts, CDNJS and Tailwind (fonts and styling). These services are governed by their own privacy policies.",
+                privacy4h: "Advertising",
+                privacy4p: "The site may display ads from advertising partners, who may use cookies to show relevant ads. You can control cookies in your browser settings.",
+                privacy5h: "Questions and updates",
+                privacy5p: "For any privacy question or to request data deletion, write to contact@opentidey.com. We may update this policy from time to time; the last-updated date is shown above.",
+                tideColNote: "Tide values are modeled relative to mean sea level (+ above, − below); arrows show the direction of water movement. Accuracy decreases the further the forecast is from today.",
+                tideNoteHM: "Harmonic estimate calibrated for Morocco's Atlantic coast; heights are approximate, above chart datum. For navigation use official tables.",
+                tideColNoteHM: "Tide heights are approximate, above chart datum, from a harmonic model calibrated for Morocco's Atlantic coast. Weather effects (pressure, wind) are not included."
+            }
+        };
+
+        const SUPPORTED_LANGS = ['ar', 'fr', 'en'];
+        const store = {
+            get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+            set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+        };
+        const savedLang = store.get('opentidey_lang');
+        let currentLang = SUPPORTED_LANGS.includes(savedLang) ? savedLang : 'ar';
+
+        function tr(key, vars = {}) {
+            const str = translations[currentLang][key] ?? translations.ar[key] ?? key;
+            return str.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+        }
+
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function applyStaticTranslations() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                el.textContent = tr(el.getAttribute('data-i18n'));
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                el.placeholder = tr(el.getAttribute('data-i18n-placeholder'));
+            });
+            document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+                el.setAttribute('aria-label', tr(el.getAttribute('data-i18n-aria')));
+            });
+            document.querySelectorAll('[data-i18n-title]').forEach(el => {
+                el.setAttribute('title', tr(el.getAttribute('data-i18n-title')));
+            });
+            document.title = tr('pageTitle');
+        }
+
+        function changeLanguage(lang) {
+            if (!SUPPORTED_LANGS.includes(lang)) return;
+            currentLang = lang;
+            store.set('opentidey_lang', lang);
+
+            const html = document.getElementById('htmlRoot');
+            html.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
+            html.setAttribute('lang', lang);
+
+            SUPPORTED_LANGS.forEach(l => {
+                const btn = document.getElementById('lang' + l.charAt(0).toUpperCase() + l.slice(1));
+                btn.setAttribute('aria-pressed', l === lang ? 'true' : 'false');
+                if (l === lang) {
+                    btn.className = "px-3 py-1.5 text-xs font-bold rounded-full bg-white text-[#0b5fa5] transition";
+                } else {
+                    btn.className = "px-3 py-1.5 text-xs font-bold rounded-full text-white/85 hover:text-white transition";
+                }
+            });
+
+            applyStaticTranslations();
+            renderSpotHeader();
+            renderWeather();
+            updateFavoriteBtnUI();
+            renderFavoritesBar();
+            updateMarkerPopups();
+            refreshSearchResults();
+        }
+
+        function closePopupAd() {
+            document.getElementById('popupAd').style.display = 'none';
+        }
+
+        const fishingSpots = [
+            { id: "temara", lat: 33.92, lon: -6.90, names: { ar: "تمارة، المغرب", fr: "Témara, Maroc", en: "Temara, Morocco" } },
+            { id: "rabat", lat: 34.02, lon: -6.83, names: { ar: "الرباط، المغرب", fr: "Rabat, Maroc", en: "Rabat, Morocco" } },
+            { id: "skhirat", lat: 33.85, lon: -7.03, names: { ar: "الصخيرات، المغرب", fr: "Skhirat, Maroc", en: "Skhirat, Morocco" } },
+            { id: "mehdia", lat: 34.25, lon: -6.67, names: { ar: "المهدية، القنيطرة", fr: "Mehdia, Kénitra", en: "Mehdia, Kenitra" } },
+            { id: "casablanca", lat: 33.57, lon: -7.58, names: { ar: "الدار البيضاء، المغرب", fr: "Casablanca, Maroc", en: "Casablanca, Morocco" } },
+            { id: "tangier", lat: 35.75, lon: -5.83, names: { ar: "طنجة، المغرب", fr: "Tanger, Maroc", en: "Tangier, Morocco" } },
+            { id: "agadir", lat: 30.42, lon: -9.59, names: { ar: "أكادير، المغرب", fr: "Agadir, Maroc", en: "Agadir, Morocco" } },
+            { id: "safi", lat: 32.29, lon: -9.23, names: { ar: "آسفي، المغرب", fr: "Safi, Maroc", en: "Safi, Morocco" } },
+            { id: "mohammedia", lat: 33.71, lon: -7.38, names: { ar: "المحمدية، المغرب", fr: "Mohammédia, Maroc", en: "Mohammedia, Morocco" } },
+            { id: "barcelona", lat: 41.38, lon: 2.17, names: { ar: "برشلونة، إسبانيا", fr: "Barcelone, Espagne", en: "Barcelona, Spain" } },
+            { id: "valencia", lat: 39.46, lon: -0.37, names: { ar: "فالنسيا، إسبانيا", fr: "Valence, Espagne", en: "Valencia, Spain" } },
+            { id: "malaga", lat: 36.72, lon: -4.42, names: { ar: "مالقة، إسبانيا", fr: "Malaga, Espagne", en: "Málaga, Spain" } }
+        ];
+
+        function spotName(spot) {
+            return spot.names[currentLang] || spot.names.ar;
+        }
+
+        const customSpots = (() => { try { return JSON.parse(localStorage.getItem('opentidey_custom')) || {}; } catch { return {}; } })();
+        function findSpotById(id) {
+            return fishingSpots.find(s => s.id === id) || customSpots[id];
+        }
+
+        // Favorites are stored by spot id; older versions stored the Arabic name, so migrate those.
+        function loadFavorites() {
+            let stored;
+            try { stored = JSON.parse(localStorage.getItem('opentidey_favs')) || []; } catch { stored = []; }
+            const ids = [];
+            stored.forEach(item => {
+                const spot = typeof item === 'string'
+                    ? findSpotById(item)
+                    : fishingSpots.find(s => s.id === item?.id || s.names.ar === item?.name || (s.lat === item?.lat && s.lon === item?.lon));
+                if (spot && !ids.includes(spot.id)) ids.push(spot.id);
+            });
+            return ids;
+        }
+
+        let currentSpot = fishingSpots[0];
+        let favorites = loadFavorites();
+        store.set('opentidey_favs', JSON.stringify(favorites));
+
+        // Live data for the current spot, kept so a language switch re-renders without refetching.
+        let weatherState = { status: 'loading', weather: null, marine: null };
+        let loadRequestId = 0;
+
+        // The map is optional: if Leaflet fails to load, the forecast still works.
+        const hasMap = typeof L !== 'undefined';
+        const map = hasMap ? L.map('map').setView([currentSpot.lat, currentSpot.lon], 5) : null;
+        if (hasMap) {
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap' }).addTo(map);
+        } else {
+            document.getElementById('map').innerHTML = '<p class="p-4 text-xs text-slate-500 text-center">تعذر تحميل الخريطة / Map unavailable</p>';
+        }
+
+        const markers = hasMap ? fishingSpots.map(spot => {
+            const marker = L.marker([spot.lat, spot.lon]).addTo(map);
+            marker.on('click', () => loadSpot(spot));
+            return { spot, marker };
+        }) : [];
+
+        function updateMarkerPopups() {
+            markers.forEach(({ spot, marker }) => {
+                const content = `<b>${escapeHtml(spotName(spot))}</b>`;
+                if (marker.getPopup()) marker.setPopupContent(content);
+                else marker.bindPopup(content);
+            });
+        }
+
+        function renderSpotHeader() {
+            document.getElementById('locationTitle').textContent = spotName(currentSpot);
+            document.getElementById('locationCoords').textContent = tr('coords', { lat: currentSpot.lat, lon: currentSpot.lon });
+        }
+
+        function formatNumber(value) {
+            return Number(value).toLocaleString(currentLang === 'ar' ? 'ar-MA' : currentLang, { maximumFractionDigits: 1 });
+        }
+
+        // ---- Approximate solunar periods (low-precision lunar position, good to roughly +/-10 min) ----
+        function moonRA(jd) {
+            const rad = Math.PI / 180, rev = x => ((x % 360) + 360) % 360, sin = x => Math.sin(x * rad), cos = x => Math.cos(x * rad);
+            const d = jd - 2451543.5;
+            const N = rev(125.1228 - 0.0529538083 * d), inc = 5.1454, w = rev(318.0634 + 0.1643573223 * d), e = 0.0549, M = rev(115.3654 + 13.0649929509 * d);
+            let E = M + (e / rad) * sin(M) * (1 + e * cos(M));
+            for (let n = 0; n < 5; n++) E = E - (E - (e / rad) * sin(E) - M) / (1 - e * cos(E));
+            const xv = 60.2666 * (cos(E) - e), yv = 60.2666 * Math.sqrt(1 - e * e) * sin(E);
+            const v = Math.atan2(yv, xv) / rad, r = Math.hypot(xv, yv);
+            const xh = r * (cos(N) * cos(v + w) - sin(N) * sin(v + w) * cos(inc));
+            const yh = r * (sin(N) * cos(v + w) + cos(N) * sin(v + w) * cos(inc));
+            const zh = r * sin(v + w) * sin(inc);
+            const Ms = rev(356.047 + 0.9856002585 * d), Ls = rev(282.9404 + 4.70935e-5 * d + Ms), Lm = rev(N + w + M), D = rev(Lm - Ls), F = rev(Lm - N);
+            let lon = Math.atan2(yh, xh) / rad;
+            const lat = Math.atan2(zh, Math.hypot(xh, yh)) / rad;
+            lon += -1.274 * sin(M - 2 * D) + 0.658 * sin(2 * D) - 0.186 * sin(Ms) - 0.059 * sin(2 * M - 2 * D) - 0.057 * sin(M - 2 * D + Ms) + 0.053 * sin(M + 2 * D) + 0.046 * sin(2 * D - Ms) + 0.041 * sin(M - Ms) - 0.035 * sin(D) - 0.031 * sin(M + Ms) - 0.015 * sin(2 * F - 2 * D) + 0.011 * sin(M - 4 * D);
+            const ecl = 23.4393, x = cos(lon) * cos(lat), y = sin(lon) * cos(lat) * cos(ecl) - sin(lat) * sin(ecl);
+            return rev(Math.atan2(y, x) / rad);
+        }
+        // Julian date at which the moon crosses the meridian (target 0) or the opposite meridian (target 180) nearest to `guess`.
+        function moonMeridian(guess, lon, target) {
+            let t = guess;
+            for (let n = 0; n < 8; n++) {
+                let H = (280.46061837 + 360.98564736629 * (t - 2451545.0) + lon - moonRA(t) - target) % 360;
+                if (H > 180) H -= 360; if (H < -180) H += 360;
+                t -= H / 347.8;
+            }
+            return t;
+        }
+        function solunarPeriods(lon, offsetSec) {
+            const localNow = new Date(Date.now() + offsetSec * 1000);
+            const midJD = Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate()) / 86400000 + 2440587.5 - offsetSec / 86400;
+            const transit = moonMeridian(midJD + 0.5 - lon / 360, lon, 0), half = 0.5175; // half a lunar day, in days
+            const out = [];
+            for (let k = -4; k <= 6; k++) {
+                const c = transit + k * half / 2; // even k: transit/underfoot (major), odd k: moonrise/set area (minor)
+                const major = k % 2 === 0, span = (major ? 1 : 0.5) / 24;
+                if (c + span < midJD || c - span >= midJD + 1) continue;
+                out.push({ major, start: c - span, end: c + span });
+            }
+            return out.sort((a, b) => a.start - b.start);
+        }
+
+        // ---- Fishing activity index (estimate): solunar + dawn/dusk + tide movement + wind + waves + pressure trend ----
+        function fishScoreFactory(weatherData, marineData, startIdx, lon) {
+            const off = weatherData.utc_offset_seconds || 0, half = 0.5175;
+            const times = weatherData.hourly?.time || [], hh = weatherData.hourly || {};
+            const toMs = t => Date.parse(t + 'Z');
+            const jdOf = ms => (ms - off * 1000) / 86400000 + 2440587.5;
+            const t0 = moonMeridian(jdOf(toMs(times[startIdx])) - 0.05, lon, 0);
+            const majors = [], minors = [];
+            for (let n = -3; n <= 16; n++) {
+                const c = moonMeridian(t0 + n * half, lon, n % 2 === 0 ? 0 : 180);
+                majors.push(c); minors.push(c + half / 2);
+            }
+            const sunMs = [...(weatherData.daily?.sunrise || []), ...(weatherData.daily?.sunset || [])].map(toMs);
+            const sl = marineData.hourly?.sea_level_height_msl || [];
+            let maxRate = 0;
+            for (let j = 1; j < sl.length - 1; j++) if (sl[j - 1] != null && sl[j + 1] != null) maxRate = Math.max(maxRate, Math.abs(sl[j + 1] - sl[j - 1]) / 2);
+            const g = (d, w) => Math.exp(-Math.pow(d / w, 2));
+            return function (k) {
+                const ms = toMs(times[k]), jd = jdOf(ms);
+                const dMaj = Math.min(...majors.map(c => Math.abs(jd - c))) * 24, dMin = Math.min(...minors.map(c => Math.abs(jd - c))) * 24;
+                const sol = Math.max(35 * g(dMaj, 1.3), 18 * g(dMin, 0.9));
+                const dSun = sunMs.length ? Math.min(...sunMs.map(x => Math.abs(ms - x))) / 3600e3 : 99;
+                const sun = 20 * g(dSun, 1.5);
+                const rate = sl[k - 1] != null && sl[k + 1] != null && maxRate > 0 ? Math.abs(sl[k + 1] - sl[k - 1]) / 2 : null;
+                const tide = rate === null ? 10 : 20 * Math.min(1, rate / maxRate);
+                const v = hh.wind_speed_10m?.[k] ?? 10;
+                const wind = v < 3 ? 8 : v < 8 ? 8 + (v - 3) / 5 * 7 : v <= 18 ? 15 : v < 45 ? 15 * (45 - v) / 27 : 0;
+                const wh = marineData.hourly?.wave_height?.[k];
+                const wave = wh == null ? 5 : wh <= 1.2 ? 10 : wh < 3 ? 10 * (3 - wh) / 1.8 : 0;
+                const dp = k >= 3 && hh.surface_pressure?.[k] != null && hh.surface_pressure?.[k - 3] != null ? hh.surface_pressure[k] - hh.surface_pressure[k - 3] : 0;
+                const pres = dp > -2 && dp < 0.5 ? 10 : dp <= -3 ? 6 : dp >= 3 ? 4 : 7;
+                // Timing (moon, dawn/dusk, tide flow) drives the score; wind, waves and pressure only scale it (calm weather alone no longer scores as 'active').
+                const pct = (sol + sun + tide) / 75 * 100 * (0.6 + 0.4 * (wind + wave + pres) / 35);
+                const unsafe = v >= 40 || (wh != null && wh >= 3);
+                const level = unsafe ? 0 : pct < 30 ? 1 : pct < 45 ? 2 : pct < 60 ? 3 : pct < 75 ? 4 : 5;
+                const r = x => Math.round(x);
+                return { level, pct: r(pct), detail: `${tr('fSol')} ${r(sol)}/35 · ${tr('fSun')} ${r(sun)}/20 · ${tr('fTide')} ${r(tide)}/20 · ${tr('fWind')} ${r(wind)}/15 · ${tr('fWave')} ${r(wave)}/10 · ${tr('fPres')} ${r(pres)}/10` };
+            };
+        }
+
+        function wxInfo(code, isDay) {
+            const day = isDay !== 0;
+            if (code === 0) return { key: 'wxClear', icon: day ? 'fa-sun' : 'fa-moon' };
+            if (code === 1 || code === 2) return { key: 'wxPartly', icon: day ? 'fa-cloud-sun' : 'fa-cloud-moon' };
+            if (code === 3) return { key: 'wxCloud', icon: 'fa-cloud' };
+            if (code === 45 || code === 48) return { key: 'wxFog', icon: 'fa-smog' };
+            if (code >= 51 && code <= 57) return { key: 'wxDrizzle', icon: 'fa-cloud-rain' };
+            if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return { key: 'wxRain', icon: 'fa-cloud-showers-heavy' };
+            if ((code >= 71 && code <= 77) || code === 85 || code === 86) return { key: 'wxSnow', icon: 'fa-snowflake' };
+            if (code >= 95) return { key: 'wxStorm', icon: 'fa-bolt' };
+            return { key: 'wxPartly', icon: 'fa-cloud' };
+        }
+
+        function renderSolunar(weatherData) {
+            const box = document.getElementById('solunarList');
+            const off = weatherData.utc_offset_seconds || 0;
+            const fmt = jd => new Date((jd - 2440587.5) * 864e5 + off * 1000).toISOString().slice(11, 16);
+            box.innerHTML = solunarPeriods(currentSpot.lon, off).map(pr => `
+                <div class="p-2.5 bg-[#f2f5f9] rounded-xl border ${pr.major ? 'border-green-500/30' : 'border-yellow-500/30'}">
+                    <div class="flex justify-between font-bold ${pr.major ? 'text-green-600' : 'text-amber-600'} mb-0.5">
+                        <span class="text-xs">${escapeHtml(tr(pr.major ? 'solMajor' : 'solMinor'))}</span>
+                        <span class="text-[11px]">${escapeHtml(tr(pr.major ? 'solunarHigh' : 'solunarMed'))}</span>
+                    </div>
+                    <p class="text-[11px] text-slate-600" dir="ltr">${fmt(pr.start)} - ${fmt(pr.end)}</p>
+                </div>`).join('');
+        }
+
+        function renderWeather() {
+            const tableBody = document.getElementById('weatherTableBody');
+            const liveTag = document.getElementById('updateTimeTag');
+            const summaryWind = document.getElementById('summaryWind');
+            const summaryWave = document.getElementById('summaryWave');
+
+            if (weatherState.status === 'loading') {
+                summaryWind.textContent = "...";
+                summaryWave.textContent = "...";
+                liveTag.textContent = tr('liveLoading');
+                liveTag.className = "text-xs bg-[#f2f5f9] text-amber-600 px-3 py-1 rounded-lg border border-[#d5dde6]";
+                document.getElementById('tideList').innerHTML = '';
+                tableBody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500">${escapeHtml(tr('tableLoading'))}</td></tr>`;
+                return;
+            }
+
+            if (weatherState.status === 'error') {
+                summaryWind.textContent = "--";
+                summaryWave.textContent = "--";
+                liveTag.textContent = tr('liveError');
+                liveTag.className = "text-xs bg-[#f2f5f9] text-red-600 px-3 py-1 rounded-lg border border-[#d5dde6]";
+                document.getElementById('tideList').innerHTML = '';
+                tableBody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-red-600">${escapeHtml(tr('tableError'))}</td></tr>`;
+                return;
+            }
+
+            const weatherData = weatherState.weather;
+            const marineData = weatherState.marine;
+            const speed = tr('unitSpeed');
+            const meter = tr('unitMeter');
+
+            liveTag.textContent = tr('liveTag') + (weatherState.updatedAt ? ' · ' + new Date(weatherState.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+            liveTag.className = "text-xs bg-[#f2f5f9] text-green-600 px-3 py-1 rounded-lg border border-[#d5dde6]";
+
+            const currentWindSpeed = weatherData.current?.wind_speed_10m ?? 0;
+            summaryWind.textContent = `${formatNumber(currentWindSpeed)} ${speed}`;
+
+            const nowLocal = new Date(Date.now() + (weatherData.utc_offset_seconds || 0) * 1000).toISOString().slice(0, 13);
+            const startIdx = Math.max(0, (weatherData.hourly?.time || []).findIndex(t => t.startsWith(nowLocal)));
+            const firstWave = marineData.hourly?.wave_height?.[startIdx] ?? marineData.hourly?.wave_height?.find(v => v != null);
+            summaryWave.textContent = firstWave == null ? '—' : `${formatNumber(firstWave)} ${meter}`;
+
+            tableBody.innerHTML = '';
+
+            // Smooth gradient palettes (value -> color); wind scale is defined in knots like most marine-forecast sites.
+            const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+            const makeScale = stops => v => {
+                if (v <= stops[0][0]) return stops[0][1];
+                for (let i = 1; i < stops.length; i++) {
+                    if (v <= stops[i][0]) {
+                        const [a, ca] = stops[i - 1], [b, cb] = stops[i], t = (v - a) / (b - a);
+                        const A = hexRgb(ca), B = hexRgb(cb);
+                        return '#' + A.map((x, j) => Math.round(x + (B[j] - x) * t).toString(16).padStart(2, '0')).join('');
+                    }
+                }
+                return stops[stops.length - 1][1];
+            };
+            const textOn = hex => {
+                const L = hexRgb(hex).map(c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }).reduce((t, c, i) => t + c * [0.2126, 0.7152, 0.0722][i], 0);
+                return 1.05 / (L + 0.05) > (L + 0.05) / 0.063 ? '#fff' : '#10202e';
+            };
+            const windKn = makeScale([[5, '#ffffff'], [6, '#d7fcfa'], [7, '#bdfafa'], [8, '#8ff8f4'], [9, '#67f5ed'], [10, '#56f7c8'], [12, '#26fd5f'], [14, '#02fe01'], [16, '#8ff701'], [18, '#ccf206'], [20, '#ffd400'], [22, '#ff9a1a'], [24, '#ff382a'], [28, '#e0148c'], [34, '#a010c8'], [42, '#5a1fb0']]);
+            const windColor = kmh => windKn(kmh / 1.852);
+            const waveColor = makeScale([[0.3, '#f0fbff'], [0.6, '#cdeefd'], [1, '#8fd3f7'], [1.5, '#4fb3f0'], [2, '#2b8be0'], [2.5, '#2a63c9'], [3.5, '#3a3fb5'], [4.5, '#5b2a9e'], [6, '#8a1f86'], [8, '#b0123a']]);
+            const periodColor = makeScale([[6, '#ffffff'], [11, '#fff3f2'], [13, '#fdc4c4'], [15, '#fbb1b2'], [18, '#f98a8a'], [22, '#f45b5b']]);
+            const tempColor = makeScale([[0, '#9fd0ff'], [8, '#d9ecb0'], [12, '#f7e46a'], [16, '#fcd02a'], [20, '#fea901'], [25, '#fb7a14'], [30, '#f04a1a'], [36, '#c8102e']]);
+            const fishOf = fishScoreFactory(weatherData, marineData, startIdx, currentSpot.lon);
+            const fishBg = ['#dc2626', '#e5e7eb', '#d9f99d', '#86efac', '#22c55e', '#15803d'];
+            const waterColor = t => t < 12 ? '#e0e7ff' : t < 16 ? '#ddd6fe' : t < 20 ? '#fbcfe8' : t < 24 ? '#fecdd3' : '#fda4af';
+            let lastDay = '';
+            const slArr = marineData.hourly?.sea_level_height_msl;
+            const tideExt = getTideExtremes(marineData);
+            const tideAbs = marineData.tideSource === 'harmonic';
+            const tideNoteEl2 = document.getElementById('tideColNoteEl');
+            if (tideNoteEl2) { tideNoteEl2.dataset.i18n = tideAbs ? 'tideColNoteHM' : 'tideColNote'; tideNoteEl2.textContent = tr(tideAbs ? 'tideColNoteHM' : 'tideColNote'); }
+            for (let k = startIdx; k < startIdx + 168; k += tableStep) {
+                const i = (k - startIdx) / tableStep;
+                const rawTime = weatherData.hourly?.time?.[k];
+                if (rawTime && rawTime.slice(0, 10) !== lastDay) {
+                    lastDay = rawTime.slice(0, 10);
+                    const dayRow = document.createElement('tr');
+                    dayRow.className = 'wf-day';
+                    dayRow.innerHTML = `<td colspan="8" dir="auto">${new Date(lastDay + 'T12:00:00').toLocaleDateString(currentLang === 'ar' ? 'ar-MA' : currentLang, { weekday: 'long', day: 'numeric', month: 'long' })}</td>`;
+                    tableBody.appendChild(dayRow);
+                }
+                const timeStr = (rawTime ? rawTime.slice(11, 16) : `${String(k).padStart(2, '0')}:00`) + tr('hourSuffix');
+                const wSpeed = weatherData.hourly?.wind_speed_10m?.[k] ?? 10;
+                const wDir = weatherData.hourly?.wind_direction_10m?.[k] ?? 0;
+                const temp = weatherData.hourly?.temperature_2m?.[k] ?? 20;
+                const pressure = weatherData.hourly?.surface_pressure?.[k] ?? 1012;
+                const waveH = marineData.hourly?.wave_height?.[k] ?? null;
+                const waveDir = marineData.hourly?.wave_direction?.[k] ?? null;
+                const wavePer = marineData.hourly?.wave_peak_period?.[k] ?? marineData.hourly?.wave_period?.[k] ?? null;
+                const fish = fishOf(k);
+                const wx = wxInfo(weatherData.hourly?.weather_code?.[k], weatherData.hourly?.is_day?.[k]);
+                const sstVal = marineData.hourly?.sea_surface_temperature?.[k] ?? null;
+                const tideVal = slArr?.[k] ?? null;
+                const tideNext = slArr?.[k + 1] ?? null;
+                const rising = tideVal !== null && tideNext !== null ? tideNext >= tideVal : true;
+                const rowMs = rawTime ? Date.parse(rawTime + 'Z') : null;
+                const ext = rowMs === null ? null : tideExt.find(e => e.ms >= rowMs && e.ms < rowMs + tableStep * 3600e3);
+                const sgn = v => tideAbs ? formatNumber(v) : (v < 0 ? '\u2212' : '+') + formatNumber(Math.abs(v));
+                const tideSvg = (d, col, sz) => `<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block">${d}</svg>`;
+                const icoHigh = '<path d="M12 19V7M6.5 12.5 12 7l5.5 5.5M5 4h14"/>';
+                const icoLow = '<path d="M12 5v12M6.5 11.5 12 17l5.5-5.5M5 20h14"/>';
+                const icoUp = '<path d="M7 17 17 7M9 7h8v8"/>';
+                const icoDown = '<path d="M7 7l10 10M17 9v8H9"/>';
+                let tideCell;
+                if (ext) {
+                    const col = ext.high ? '#16a34a' : '#0891b2';
+                    tideCell = `<div class="text-center" dir="ltr" style="font-variant-numeric:tabular-nums" title="${escapeHtml(tr(ext.high ? 'tideHigh' : 'tideLow'))}">
+                            ${tideSvg(ext.high ? icoHigh : icoLow, col, 28)}
+                            <div class="text-[12px] font-bold leading-tight text-slate-800">${sgn(ext.h)} ${meter} ${new Date(ext.ms).toISOString().slice(11, 16)}</div>
+                        </div>`;
+                } else if (tideVal !== null) {
+                    tideCell = `<div class="text-center" dir="ltr" style="font-variant-numeric:tabular-nums" title="${escapeHtml(tr(rising ? 'tideRising' : 'tideFalling'))}">
+                            ${tideSvg(rising ? icoUp : icoDown, '#94a3b8', 24)}
+                            <div class="text-[12px] font-semibold leading-tight text-slate-600">${sgn(tideVal)} ${meter}</div>
+                        </div>`;
+                } else {
+                    tideCell = '<span class="text-slate-400">\u2014</span>';
+                }
+
+                const rowBg = (i % 2 === 0) ? "bg-white" : "bg-slate-50";
+                const row = document.createElement('tr');
+                row.className = `${rowBg} hover:bg-sky-50 transition text-xs`;
+                row.innerHTML = `
+                    <td class="px-2 py-2 font-bold text-[#0b6fb8]" dir="ltr">${timeStr}</td>
+                    <td class="px-2 py-2">
+                        ${waveH === null ? '<span class="text-slate-400">—</span>' : `
+                        <div class="wcell" dir="ltr" style="background:linear-gradient(135deg,${waveColor(Math.max(0, waveH - 0.3))},${waveColor(waveH + 0.3)});color:${textOn(waveColor(waveH))};font-variant-numeric:tabular-nums" title="${escapeHtml(tr('thVagues'))}">${waveDir === null ? '<i class="fa-solid fa-water text-[11px] mr-1"></i>' : `<i class="fa-solid fa-arrow-up text-[11px] mr-1" style="display:inline-block;transform:rotate(${waveDir + 180}deg);" aria-hidden="true"></i>`}${formatNumber(waveH)} <span class="text-[10px] font-semibold">${meter}</span></div>
+                        <div class="text-[10px] text-slate-500 text-center mt-0.5" dir="ltr" style="font-variant-numeric:tabular-nums">${waveDir === null ? '' : `${formatNumber(waveDir)}°`}${waveDir !== null && wavePer !== null ? ' · ' : ''}${wavePer === null ? '' : `<span style="background:${periodColor(wavePer)};color:${textOn(periodColor(wavePer))};padding:0 5px;border-radius:4px;font-weight:600">${formatNumber(wavePer)} ${tr('unitSecond')}</span>`}</div>`}
+                    </td>
+                    <td class="px-2 py-2">
+                        <div class="wcell" style="background:${windColor(wSpeed)};color:${textOn(windColor(wSpeed))}"><i class="fa-solid fa-arrow-up text-[11px] ltr:mr-1 rtl:ml-1" style="display:inline-block;transform: rotate(${wDir + 180}deg);"></i>${formatNumber(wSpeed)} <span class="text-[10px] font-semibold">${speed}</span></div>
+                        <div class="text-[10px] text-slate-500 text-center mt-0.5">${formatNumber(wDir)}°</div>
+                    </td>
+                    <td class="px-2 py-2 text-center text-sky-600 text-base" title="${escapeHtml(tr(wx.key))}">
+                        <i class="fa-solid ${wx.icon}" aria-hidden="true"></i>
+                        <div class="text-[10px] text-slate-500 font-semibold leading-tight">${escapeHtml(tr(wx.key))}</div>
+                    </td>
+                    <td class="px-2 py-2">
+                        <span class="px-2 py-0.5 rounded font-bold text-[11px]" style="background:${tempColor(temp)};color:${textOn(tempColor(temp))}">${formatNumber(temp)}°C</span>
+                        <div class="text-[10px] text-slate-500 mt-0.5">${formatNumber(pressure)} ${tr('unitPressure')}</div>
+                    </td>
+                    <td class="px-2 py-2">
+                        ${sstVal === null ? '<span class="text-slate-400">—</span>' : `<div class="wcell !min-w-0" dir="ltr" style="background:${waterColor(sstVal)}"><i class="fa-solid fa-temperature-half text-[11px] ltr:mr-1 rtl:ml-1"></i>${formatNumber(sstVal)}°C</div>`}
+                    </td>
+                    <td class="px-2 py-2">${tideCell}</td>
+                    <td class="px-2 py-2">
+                        <div class="wcell !min-w-0" style="background:${fishBg[fish.level]};color:${fish.level === 5 || fish.level === 0 ? '#fff' : '#10202e'};cursor:pointer" title="${escapeHtml(fish.detail)}" role="button" tabindex="0" onclick="this.querySelector('.fish-detail').classList.toggle('hidden')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
+                            ${fish.level === 0 ? '<i class="fa-solid fa-triangle-exclamation"></i>' : '<i class="fa-solid fa-fish text-[11px]"></i>'.repeat(fish.level)}
+                            <div class="text-[10px] font-semibold leading-tight">${escapeHtml(tr('fishL' + fish.level))}</div>
+                            <div class="fish-detail hidden text-[9px] font-medium leading-tight mt-1" dir="ltr">${fish.pct}%<br>${escapeHtml(fish.detail).split(' · ').join('<br>')}</div>
+                        </div>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            }
+            renderTides(marineData, startIdx, weatherData.utc_offset_seconds || 0);
+            renderSolunar(weatherData);
+        }
+
+        const tableStep = 2; // one row every 2 hours (7 days)
+
+        // ---- Harmonic tide estimate for Morocco's Atlantic coast ----
+        // M2 + S2 + N2 driven by the real moon/sun hour angles, so spring/neap cycles evolve correctly. Calibrated on reference tide values (Témara, Nov 2026: today's extremes + the week's spring high ≈3.3 m / low ≈1.0 m).
+        const HM = { lon: -6.9, Z0: 2.14, Am: 0.875, As: 0.315, An: 0.131, dm: 54, ds: 44, dn: 20 };
+        function sunRA(jd) {
+            const rad = Math.PI / 180, nrm = x => ((x % 360) + 360) % 360, d = jd - 2451545.0;
+            const L = nrm(280.460 + 0.9856474 * d), g = nrm(357.528 + 0.9856003 * d) * rad;
+            const lam = (L + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * rad, eps = (23.439 - 0.0000004 * d) * rad;
+            return nrm(Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam)) / rad);
+        }
+        function harmonicTideHeight(utcMs) {
+            const rad = Math.PI / 180, nrm = x => ((x % 360) + 360) % 360;
+            const jd = utcMs / 86400000 + 2440587.5, d = jd - 2451545.0, gm = 280.46061837 + 360.98564736629 * d;
+            const thm = nrm(gm + HM.lon - moonRA(jd)), ths = nrm(gm + HM.lon - sunRA(jd)), Mm = nrm(134.963 + 13.06499295 * d);
+            return HM.Z0
+                + HM.Am * Math.cos((2 * thm - HM.dm) * rad)
+                + HM.As * Math.cos((2 * ths - HM.dm - HM.ds) * rad)
+                + HM.An * Math.cos((2 * thm - Mm - HM.dm + HM.dn) * rad);
+        }
+        function harmonicExtremes(startMs, endMs, offMs) {
+            const out = [], step = 300000;
+            let y0 = harmonicTideHeight(startMs - step), y1 = harmonicTideHeight(startMs);
+            for (let t = startMs; t < endMs; t += step) {
+                const y2 = harmonicTideHeight(t + step);
+                const isHigh = y1 > y0 && y1 >= y2, isLow = y1 < y0 && y1 <= y2;
+                if (isHigh || isLow) {
+                    const den = y0 - 2 * y1 + y2, sh = den !== 0 ? 0.5 * (y0 - y2) / den : 0;
+                    out.push({ high: isHigh, ms: t + sh * step + offMs, h: y1 - 0.25 * (y0 - y2) * sh });
+                }
+                y0 = y1; y1 = y2;
+            }
+            return out;
+        }
+        const isAtlanticMorocco = spot => spot.lat >= 29.5 && spot.lat <= 35.5 && spot.lon >= -13 && spot.lon <= -6.3;
+
+        // All tide extremes (high/low) for the whole forecast window; used by the table's tide column.
+        function getTideExtremes(marineData) {
+            if (marineData?.tideExtremes) return marineData.tideExtremes;
+            const times = marineData?.hourly?.time, sl = marineData?.hourly?.sea_level_height_msl, out = [];
+            if (!sl || !times || sl.every(v => v === null)) return out;
+            for (let j = 1; j < sl.length - 1; j++) {
+                const y0 = sl[j - 1], y1 = sl[j], y2 = sl[j + 1];
+                if (y0 == null || y1 == null || y2 == null) continue;
+                const isHigh = y1 > y0 && y1 >= y2, isLow = y1 < y0 && y1 <= y2;
+                if (!isHigh && !isLow) continue;
+                const den = y0 - 2 * y1 + y2, shift = den !== 0 ? 0.5 * (y0 - y2) / den : 0;
+                out.push({ high: isHigh, ms: Date.parse(times[j] + 'Z') + shift * 3600e3, h: y1 - 0.25 * (y0 - y2) * shift });
+            }
+            return out;
+        }
+
+        // Tide extremes: official-grade harmonic predictions when a WorldTides key is set, otherwise the Open-Meteo sea-level model (refined to sub-hour precision).
+        function renderTides(marineData, startIdx = 0, offsetSec = 0) {
+            const box = document.getElementById('tideList');
+            const times = marineData?.hourly?.time;
+            const sl = marineData?.hourly?.sea_level_height_msl;
+            const noteEl = document.getElementById('tideNoteEl');
+            if (noteEl) noteEl.textContent = tr(marineData?.tideSource === 'worldtides' ? 'tideNoteWT' : marineData?.tideSource === 'harmonic' ? 'tideNoteHM' : 'tideNote');
+            let out = [];
+            if (marineData?.tideExtremes) {
+                const nowMs = Date.now() + offsetSec * 1000;
+                out = marineData.tideExtremes.filter(e => e.ms >= nowMs - 3600e3).slice(0, 6);
+            } else if (sl && times && !sl.every(v => v === null)) {
+                for (let j = Math.max(1, startIdx); j < sl.length - 1 && out.length < 6; j++) {
+                    const y0 = sl[j - 1], y1 = sl[j], y2 = sl[j + 1];
+                    if (y0 == null || y1 == null || y2 == null) continue;
+                    const isHigh = y1 > y0 && y1 >= y2, isLow = y1 < y0 && y1 <= y2;
+                    if (!isHigh && !isLow) continue;
+                    const den = y0 - 2 * y1 + y2, shift = den !== 0 ? 0.5 * (y0 - y2) / den : 0; // parabolic refinement, in hours
+                    out.push({ high: isHigh, ms: Date.parse(times[j] + 'Z') + shift * 3600e3, h: y1 - 0.25 * (y0 - y2) * shift });
+                }
+            }
+            if (!out.length) { box.innerHTML = `<p class="text-xs text-slate-500">${escapeHtml(tr('tideNone'))}</p>`; return; }
+            const loc = currentLang === 'ar' ? 'ar-MA' : currentLang;
+            box.innerHTML = out.map(e => {
+                const d = new Date(e.ms);
+                const c = e.high
+                    ? { bg: '#e8f3fc', edge: '#0b6fb8', text: '#0b5fa5', badge: '#0b5fa5', icon: 'fa-arrow-trend-up' }
+                    : { bg: '#fff3e0', edge: '#d97706', text: '#b45309', badge: '#b45309', icon: 'fa-arrow-trend-down' };
+                return `<div class="p-2.5 rounded-xl flex justify-between items-center" style="background:${c.bg};border:1px solid ${c.edge}33;border-inline-start:4px solid ${c.edge}">
+                    <div><span class="block font-bold text-xs" style="color:${c.text}"><i class="fa-solid ${c.icon} ltr:mr-1 rtl:ml-1" aria-hidden="true"></i>${escapeHtml(tr(e.high ? 'tideHigh' : 'tideLow'))}</span>
+                    <span class="text-[10px] text-slate-500">${escapeHtml(d.toLocaleDateString(loc, { weekday: 'short', timeZone: 'UTC' }))}</span></div>
+                    <span class="text-xs font-bold text-white px-2 py-1 rounded-lg" style="background:${c.badge}" dir="ltr">${formatNumber(e.h)} ${escapeHtml(tr('unitMeter'))} · ${d.toISOString().slice(11, 16)}</span>
+                </div>`;
+            }).join('');
+        }
+
+        // Safe & Robust Live API Integration (Open-Meteo Weather & Marine)
+        // Opentidey proxy (see opentidey-proxy/server.js): keeps the WorldTides key on the server and caches data for 12 h.
+        // Example: 'https://api.opentidey.com'. Leave empty to call Open-Meteo directly from the browser, as before.
+        const API_BASE = '';
+
+        async function loadFromProxy(spot) {
+            const res = await fetch(`${API_BASE}/api/weather?lat=${spot.lat}&lon=${spot.lon}`);
+            if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
+            const d = await res.json();
+            const wx = d.weather, hr = wx.hourly, off = wx.utcOffsetSeconds || 0;
+            const weather = {
+                utc_offset_seconds: off,
+                current: { temperature_2m: wx.current?.temperatureC ?? null, wind_speed_10m: wx.current?.windSpeedKmh ?? 0 },
+                daily: { sunrise: wx.daily?.sunrise || [], sunset: wx.daily?.sunset || [] },
+                hourly: {
+                    time: hr.time,
+                    temperature_2m: hr.temperatureC,
+                    wind_speed_10m: hr.windSpeedKmh,
+                    wind_direction_10m: hr.windDirectionDeg,
+                    wind_gusts_10m: hr.windGustsKmh,
+                    surface_pressure: hr.pressureHpa,
+                    weather_code: hr.weatherCode,
+                    is_day: hr.isDay.map(v => v === null ? null : (v ? 1 : 0)),
+                    precipitation: hr.precipitationMm
+                }
+            };
+            const mh = d.marine?.available ? d.marine.hourly : {};
+            let seaLevel = mh.seaLevelMslM, tideExtremes = null, tideSource = 'model';
+            const hs = (d.tides?.heights || []).map(p => [p.epoch * 1000, p.height]);
+            if (d.tides?.available && hs.length > 2) {
+                const at = ms => { for (let q = 1; q < hs.length; q++) if (hs[q][0] >= ms) { if (hs[q - 1][0] > ms) return null; const f = (ms - hs[q - 1][0]) / (hs[q][0] - hs[q - 1][0] || 1); return hs[q - 1][1] + f * (hs[q][1] - hs[q - 1][1]); } return null; };
+                seaLevel = hr.time.map(t => at(Date.parse(t + 'Z') - off * 1000));
+                tideExtremes = (d.tides.extremes || []).map(e => ({ high: e.type === 'high', ms: e.epoch * 1000 + off * 1000, h: e.height }));
+                tideSource = 'worldtides';
+            } else if (isAtlanticMorocco(spot) && hr.time.length) {
+                const ts = hr.time.map(t => Date.parse(t + 'Z') - off * 1000);
+                seaLevel = ts.map(harmonicTideHeight);
+                tideExtremes = harmonicExtremes(ts[0] - 3 * 3600e3, ts[ts.length - 1] + 3 * 3600e3, off * 1000);
+                tideSource = 'harmonic';
+            }
+            const marine = { tideExtremes, tideSource, hourly: {
+                time: hr.time,
+                wave_height: mh.waveHeightM, wave_direction: mh.waveDirectionDeg,
+                wave_period: mh.wavePeriodS, wave_peak_period: mh.wavePeakPeriodS,
+                sea_surface_temperature: mh.seaSurfaceTemperatureC,
+                sea_level_height_msl: seaLevel
+            } };
+            return { weather, marine };
+        }
+
+        // Optional: WorldTides API key (worldtides.info) for accurate harmonic tide predictions. Leave empty to use the free model.
+        const WORLDTIDES_KEY = '';
+
+        async function loadSpot(spot, silent = false) {
+            currentSpot = spot;
+            const requestId = ++loadRequestId;
+            if (!silent) {
+                weatherState = { status: 'loading', weather: null, marine: null };
+                renderSpotHeader();
+                renderWeather();
+                updateFavoriteBtnUI();
+            }
+
+            try {
+                if (API_BASE) {
+                    try {
+                        const viaProxy = await loadFromProxy(spot);
+                        if (requestId !== loadRequestId) return;
+                        weatherState = { status: 'ready', weather: viaProxy.weather, marine: viaProxy.marine, updatedAt: Date.now() };
+                        renderWeather();
+                        return;
+                    } catch (proxyError) { console.warn('Opentidey proxy failed, falling back to direct Open-Meteo:', proxyError); }
+                }
+                const base = `latitude=${spot.lat}&longitude=${spot.lon}&forecast_days=8&timezone=auto`;
+                const getJson = async (url) => {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
+                    return res.json();
+                };
+                // Weather is required; waves and tides are separate, optional requests so one failing variable never blanks the whole table.
+                const [w, waves, tide, sst] = await Promise.allSettled([
+                    getJson(`https://api.open-meteo.com/v1/forecast?${base}&current=temperature_2m,wind_speed_10m&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,surface_pressure,weather_code,is_day&daily=sunrise,sunset`),
+                    getJson(`https://marine-api.open-meteo.com/v1/marine?${base}&hourly=wave_height,wave_direction,wave_period,wave_peak_period`)
+                        .catch(() => getJson(`https://marine-api.open-meteo.com/v1/marine?${base}&hourly=wave_height,wave_direction,wave_period`)),
+                    getJson(`https://marine-api.open-meteo.com/v1/marine?${base}&hourly=sea_level_height_msl`),
+                    getJson(`https://marine-api.open-meteo.com/v1/marine?${base}&hourly=sea_surface_temperature`)
+                ]);
+                if (requestId !== loadRequestId) return;
+                [w, waves, tide, sst].forEach(r => { if (r.status === 'rejected') console.warn('Open-Meteo request failed:', r.reason); });
+                if (w.status !== 'fulfilled') throw w.reason;
+                let tideExtremes = null, tideSource = 'model', seaLevel = tide.value?.hourly?.sea_level_height_msl;
+                if (WORLDTIDES_KEY) {
+                    try {
+                        const off = w.value.utc_offset_seconds || 0, startUnix = Math.floor(Date.now() / 1000) - 86400;
+                        const j = await getJson(`https://www.worldtides.info/api/v3?heights&extremes&datum=MSL&step=3600&start=${startUnix}&length=691200&lat=${spot.lat}&lon=${spot.lon}&key=${WORLDTIDES_KEY}`);
+                        const hs = (j.heights || []).map(h => [h.dt * 1000, h.height]).sort((a, b) => a[0] - b[0]);
+                        if (hs.length > 2) {
+                            const at = ms => { for (let q = 1; q < hs.length; q++) if (hs[q][0] >= ms) { if (hs[q - 1][0] > ms) return null; const f = (ms - hs[q - 1][0]) / (hs[q][0] - hs[q - 1][0] || 1); return hs[q - 1][1] + f * (hs[q][1] - hs[q - 1][1]); } return null; };
+                            seaLevel = (w.value.hourly?.time || []).map(t => at(Date.parse(t + 'Z') - off * 1000));
+                            tideExtremes = (j.extremes || []).map(e => ({ high: /high/i.test(e.type), ms: e.dt * 1000 + off * 1000, h: e.height }));
+                            tideSource = 'worldtides';
+                        }
+                    } catch (e) { console.warn('WorldTides failed, using model:', e); }
+                }
+                if (tideSource !== 'worldtides' && isAtlanticMorocco(spot) && (w.value.hourly?.time || []).length) {
+                    const off = w.value.utc_offset_seconds || 0;
+                    const ts = w.value.hourly.time.map(t => Date.parse(t + 'Z') - off * 1000);
+                    seaLevel = ts.map(harmonicTideHeight);
+                    tideExtremes = harmonicExtremes(ts[0] - 3 * 3600e3, ts[ts.length - 1] + 3 * 3600e3, off * 1000);
+                    tideSource = 'harmonic';
+                }
+                if (requestId !== loadRequestId) return;
+                const marineData = { tideExtremes, tideSource, hourly: {
+                    time: waves.value?.hourly?.time || tide.value?.hourly?.time || [],
+                    ...(waves.value?.hourly || {}), ...(tide.value?.hourly || {}), ...(sst.value?.hourly || {}), sea_level_height_msl: seaLevel
+                } };
+                weatherState = { status: 'ready', weather: w.value, marine: marineData, updatedAt: Date.now() };
+            } catch (error) {
+                console.error("Error fetching live weather/marine data:", error);
+                if (requestId !== loadRequestId) return;
+                if (silent && weatherState.status === 'ready') return; // keep showing the last good data on a failed background refresh
+                weatherState = { status: 'error', weather: null, marine: null };
+            }
+            renderWeather();
+        }
+
+        function toggleFavorite() {
+            const index = favorites.indexOf(currentSpot.id);
+            if (index > -1) {
+                favorites.splice(index, 1);
+            } else {
+                favorites.push(currentSpot.id);
+            }
+            store.set('opentidey_favs', JSON.stringify(favorites));
+            updateFavoriteBtnUI();
+            renderFavoritesBar();
+        }
+
+        function updateFavoriteBtnUI() {
+            const isFav = favorites.includes(currentSpot.id);
+            const btn = document.getElementById('favoriteBtn');
+            if (isFav) {
+                btn.innerHTML = `<i class="fa-solid fa-star text-amber-600 ltr:mr-1 rtl:ml-1"></i> ${escapeHtml(tr('favRemove'))}`;
+                btn.className = "text-xs bg-yellow-500/30 text-yellow-300 px-3 py-1 rounded-full font-semibold transition";
+            } else {
+                btn.innerHTML = `<i class="fa-regular fa-star ltr:mr-1 rtl:ml-1"></i> ${escapeHtml(tr('favAdd'))}`;
+                btn.className = "text-xs bg-yellow-500/20 text-amber-600 px-3 py-1 rounded-full font-semibold hover:bg-yellow-500/30 transition";
+            }
+        }
+
+        function renderFavoritesBar() {
+            const bar = document.getElementById('favoritesBar');
+            const list = document.getElementById('favoritesList');
+            list.innerHTML = '';
+            const favSpots = favorites.map(findSpotById).filter(Boolean);
+            if (favSpots.length > 0) {
+                bar.classList.remove('hidden');
+                favSpots.forEach(fav => {
+                    const pill = document.createElement('button');
+                    pill.className = "text-xs bg-[#ffffff] border border-[#d5dde6] hover:border-[#0b6fb8] text-slate-900 px-3 py-1.5 rounded-lg whitespace-nowrap transition";
+                    pill.innerHTML = `<i class="fa-solid fa-location-dot text-[#0b6fb8] ltr:mr-1 rtl:ml-1"></i> ${escapeHtml(spotName(fav))}`;
+                    pill.onclick = () => {
+                        loadSpot(fav);
+                        map?.setView([fav.lat, fav.lon], 10);
+                    };
+                    list.appendChild(pill);
+                });
+            } else {
+                bar.classList.add('hidden');
+            }
+        }
+
+        const searchInput = document.getElementById('searchInput');
+        const searchResults = document.getElementById('searchResults');
+
+        // Lowercase and strip accents/Arabic diacritics so "temara" matches "Témara" and "اسفي" matches "آسفي".
+        function normalizeText(str) {
+            return str.toLowerCase()
+                .normalize('NFD').replace(/[̀-ͯ]/g, '')
+                .replace(/[ً-ٰٟ]/g, '')
+                .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+                .trim();
+        }
+
+        let searchTimer = null, searchSeq = 0, customMarker = null;
+
+        function selectSpot(spot) {
+            if (spot.custom) {
+                customSpots[spot.id] = spot;
+                try { localStorage.setItem('opentidey_custom', JSON.stringify(customSpots)); } catch {}
+                if (hasMap) {
+                    if (customMarker) customMarker.remove();
+                    customMarker = L.marker([spot.lat, spot.lon]).addTo(map).bindPopup(`<b>${escapeHtml(spotName(spot))}</b>`);
+                }
+            }
+            loadSpot(spot);
+            map?.setView([spot.lat, spot.lon], 10);
+            searchInput.value = spotName(spot);
+            searchResults.classList.add('hidden');
+        }
+
+        function resultRow(spot, icon) {
+            const div = document.createElement('div');
+            div.className = 'p-3 hover:bg-[#e8eef5] cursor-pointer text-slate-900 border-b border-[#d5dde6] last:border-0';
+            div.innerHTML = `<i class="fa-solid ${icon} text-[#0b6fb8] ltr:mr-2 rtl:ml-2"></i> ${escapeHtml(spotName(spot))}`;
+            div.addEventListener('click', () => selectSpot(spot));
+            return div;
+        }
+
+        async function remoteSearch(rawQuery, seq) {
+            const box = () => document.getElementById('remoteResults');
+            try {
+                const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(rawQuery)}&count=10&format=json&language=${currentLang}`);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const json = await res.json();
+                if (seq !== searchSeq || !box()) return;
+                const found = (json.results || []).filter(r => !fishingSpots.some(f => Math.abs(f.lat - r.latitude) < 0.05 && Math.abs(f.lon - r.longitude) < 0.05));
+                box().innerHTML = '';
+                found.forEach(r => {
+                    const label = [r.name, r.admin1, r.country].filter((x, i, arr) => x && arr.indexOf(x) === i).join('، ');
+                    box().appendChild(resultRow({ id: 'g' + r.id, lat: r.latitude, lon: r.longitude, names: { ar: label, fr: label, en: label }, custom: true }, 'fa-earth-africa'));
+                });
+                if (!found.length && !searchResults.querySelector('.local-hit')) box().innerHTML = `<div class="p-3 text-slate-500 text-xs">${escapeHtml(tr('searchNoResults'))}</div>`;
+            } catch (err) {
+                console.warn('Geocoding failed:', err);
+                if (box() && seq === searchSeq) box().innerHTML = '';
+            }
+        }
+
+        function refreshSearchResults() {
+            const rawQuery = searchInput.value.trim();
+            const query = normalizeText(rawQuery);
+            searchResults.innerHTML = '';
+            clearTimeout(searchTimer);
+            const seq = ++searchSeq;
+            if (query === '') { searchResults.classList.add('hidden'); return; }
+            searchResults.classList.remove('hidden');
+            // Saved spots first, instantly; any other place in the world comes from the geocoder.
+            fishingSpots.filter(s => Object.values(s.names).some(n => normalizeText(n).includes(query)))
+                .forEach(spot => { const row = resultRow(spot, 'fa-location-dot'); row.classList.add('local-hit'); searchResults.appendChild(row); });
+            if (rawQuery.length < 2) return;
+            const remote = document.createElement('div');
+            remote.id = 'remoteResults';
+            remote.innerHTML = `<div class="p-3 text-slate-500 text-xs"><i class="fa-solid fa-spinner fa-spin ltr:mr-1 rtl:ml-1"></i> ${escapeHtml(tr('searching'))}</div>`;
+            searchResults.appendChild(remote);
+            searchTimer = setTimeout(() => remoteSearch(rawQuery, seq), 300);
+        }
+
+        searchInput.addEventListener('input', refreshSearchResults);
+
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.classList.add('hidden');
+            }
+        });
+
+        // YouTube refuses embeds on pages opened as local files (error 153); show a link card to the channel there instead.
+        if (location.protocol === 'file:') {
+            const frame = document.querySelector('iframe[src*="youtube.com/embed/"]');
+            if (frame) {
+                const a = document.createElement('a');
+                a.href = 'https://www.youtube.com/@rays.mustapha';
+                a.target = '_blank'; a.rel = 'noopener';
+                a.className = 'absolute inset-0 flex items-center justify-center bg-[#f2f5f9]';
+                a.innerHTML = '<i class="fa-brands fa-youtube text-red-600 text-7xl"></i>';
+                frame.replaceWith(a);
+            }
+        }
+
+        // Keep every figure (weather, waves, tides, fish index) fresh together: refresh every 15 minutes and when the tab becomes visible again after a while.
+        const REFRESH_MS = 15 * 60 * 1000;
+        setInterval(() => { if (!document.hidden && currentSpot) loadSpot(currentSpot, true); }, REFRESH_MS);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && currentSpot && weatherState.updatedAt && Date.now() - weatherState.updatedAt > 10 * 60 * 1000) loadSpot(currentSpot, true);
+        });
+
+        function openPrivacyFromHash() {
+            if (location.hash === '#privacy') { const d = document.getElementById('privacy'); if (d) { d.open = true; d.scrollIntoView(); } }
+        }
+        window.addEventListener('hashchange', openPrivacyFromHash);
+        openPrivacyFromHash();
+
+        changeLanguage(currentLang);
+        loadSpot(currentSpot);
+    </script>
+</body>
+</html>
